@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+
+venv/
+virtualenv/
+env/
+.env
+.venv
+
+# Flask
+
+instance/
+
+# IDE and Editor specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+
+*.env
+.env.*
+secrets.py
+config.py
+*.pem
+
+# Log files
+*.log
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
