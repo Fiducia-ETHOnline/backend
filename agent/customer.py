@@ -10,18 +10,55 @@ from uagents_core.contrib.protocols.chat import (
     TextContent,
     chat_protocol_spec,
 )
- 
- 
-### Example Expert Assistant
- 
-## This chat example is a barebones example of how you can create a simple chat agent
-## and connect to agentverse. In this example we will be prompting the ASI:One model to
-## answer questions on a specific subject only. This acts as a simple placeholder for
-## a more complete agentic system.
-##
- 
 
- 
+system_prompt = '''
+You are an agent works as a sales person,
+your goal is to help user define their needs of a product, and help them create the order.
+A normal process of your job is listed as follow:
+
+1. (optional) introduce yourself
+2. ask user their needs
+3. help user make their needs more in detail
+4. chat with a merchant agent using consult_merchant function to see which merchant has the best match to this result.
+4. Finally, You should have:
+- detailed description of user's needs
+- reasonable price of such a order
+5. Then, ask user to confirm this order
+6. Call create_propose to create an order
+
+'''
+
+create_propose = {
+"type": "function",
+"function": {
+  "name": "create_propose",
+  "description": "Create an order proposal",
+  "parameters": {
+    "type": "object",
+    "properties": {
+        "desc": {"type": "str"},
+        "price":{"type":"number"}
+      },
+      "required": ["desc","price"]
+    }
+  }
+}
+
+consult_merchant = {
+"type": "function",
+"function": {
+  "name": "consult_merchant",
+  "description": "chat with the merchant agent ai bot",
+  "parameters": {
+    "type": "object",
+    "properties": {
+        "message":str
+      },
+      "required": ["message"]
+    },
+
+  }
+}
 client = OpenAI(
     # By default, we are using the ASI:One LLM endpoint and model
     base_url='https://api.asi1.ai/v1',
@@ -42,11 +79,10 @@ agent = Agent(
 # compatibility between agents
 protocol = Protocol(spec=chat_protocol_spec)
  
- 
 # We define the handler for the chat messages that are sent to your agent
 @protocol.on_message(ChatMessage)
 async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
-
+    ctx.logger.info(msg)
     await ctx.send(
         sender,
         ChatAcknowledgement(timestamp=datetime.now(), acknowledged_msg_id=msg.msg_id),
@@ -56,20 +92,23 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
     text = ''
     for item in msg.content:
         if isinstance(item, TextContent):
+            
             text += item.text
  
     # query the model based on the user question
-    
+    # dialog_context = 
     try:
         r = client.chat.completions.create(
             model="asi1-mini",
             messages=[
-                {"role": "system", "content": f"""
-        You are a helpful assistant 
-                """},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text},
             ],
             max_tokens=2048,
+            # functions=[
+            #     create_propose,
+            #     consult_merchant
+            # ]
         )
  
         response = str(r.choices[0].message.content)
