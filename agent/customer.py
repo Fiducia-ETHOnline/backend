@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import uuid4
  
 from openai import OpenAI
+
 from uagents import Context, Protocol, Agent
 from uagents_core.contrib.protocols.chat import (
     ChatAcknowledgement,
@@ -53,13 +54,20 @@ consult_merchant = {
   "parameters": {
     "type": "object",
     "properties": {
-        "message":"string"
+        "message":{"type":"string"}
       },
       "required": ["message"]
     },
 
   }
 }
+
+def mock_create_propse(desc,price):
+    return {
+        'desc':desc,
+        'price':price
+    }
+
 client = OpenAI(
     # By default, we are using the ASI:One LLM endpoint and model
     base_url='https://api.asi1.ai/v1',
@@ -68,21 +76,27 @@ client = OpenAI(
     api_key='sk_01514396b3c742b3bad785a5e869e87b0da3d0d123fc4849bd57f19bf0075b92',
 )
  
-agent = Agent(
-    name="ASI-agent",
+NewsAgent = Agent(
+    name="A2A Customer Agent",
+    port=8000,
     seed="fiducia_seed",
-    port=8001,
-    mailbox=True,
-    publish_agent_details=True,
+    endpoint=["http://127.0.0.1:8000/submit"],
+    mailbox=True
 )
- 
-# We create a new protocol which is compatible with the chat protocol spec. This ensures
-# compatibility between agents
-protocol = Protocol(spec=chat_protocol_spec)
-a2aprotocol = Protocol()
-# We define the handler for the chat messages that are sent to your agent
-@a2aprotocol.on_message(A2AContext)
-async def handle_message(ctx: Context, sender: str, msg: A2AContext):
+
+# Registering agent on Almanac and funding it.
+# fund_agent_if_low(NewsAgent.wallet.address())
+
+
+# On agent startup printing address
+@NewsAgent.on_event("startup")
+async def agent_details(ctx: Context):
+    ctx.logger.info(f"Search Agent Address is {NewsAgent.address}")
+
+
+# On_query handler for news_url request
+@NewsAgent.on_query(model=A2AContext, replies={A2AResponse})
+async def query_handler2(ctx: Context, sender: str, msg: A2AContext):
     ctx.logger.info(msg)
     
     msgs = [
@@ -90,53 +104,95 @@ async def handle_message(ctx: Context, sender: str, msg: A2AContext):
                 
             ]
     msgs.extend(msg.messages)
-    print(msgs)
     try:
-       # 创建一个异步流式响应
-        with client.chat.completions.stream(
+      while True:
+        r = client.chat.completions.create(
             model="asi1-mini",
             messages=msgs,
             max_tokens=2048,
-            functions=[
+            tools=[
                 create_propose,
                 consult_merchant
-            ],
-        ) as stream:
-            response_content = ""
-            async for event in stream:
-                if event.type == "message.delta":
-                    delta = event.delta.get("content", "")
-                    if delta:
-                        response_content += delta
-                        # 实时推送给用户（部分结果）
-                        await ctx.send(sender, A2AResponse(type='delta',content=delta))
-                elif event.type == "message.completed":
-                    # 流结束，打印最终结果
-                    ctx.logger.info("Streaming complete")
-
-            # 最终结果
-            msgs.append({"role": "assistant", "content": response_content})
- 
+            ]
+        )
+        tool_calls = r.choices[0].message.tool_calls
+        ctx.logger.warning(r.choices[0].message)
         
+        if tool_calls:
+            msgs.append(r.choices[0].message)
+            for tool in tool_calls:
+                 
+                 function_name = tool.function.name
+                 arguments = json.loads(tool.function.arguments)
+                 if function_name == 'create_propose':
+                     desc = arguments['desc']
+                     price = arguments['price']
+                     ctx.send(sender,A2AResponse(type='order',content=mock_create_propse(desc,price)))
+                     return
+                 else:
+                     message = arguments['message']
+                     ctx.logger.info("The agent tries to consult a merchant agent:")
+                     ctx.logger.info(message)
+                     ctx.logger.info("Mock return: ")
+                     mock_msg = '''
+                    I suggest this object's price as 15USD
+                    '''
+                     ctx.logger.info(mock_msg)
+                     msgs.append({"role":'tool','tool_call_id':tool.id,'content':mock_msg})
+        else:
+          response = str(r.choices[0].message.content)
+          await ctx.send(sender, A2AResponse(type='chat',content=response))
+          return
+          
     except:
         ctx.logger.exception('Error querying model')
  
-    # msgs.pop(0)
-    # # send the response back to the user
-    # await ctx.send(sender, A2AContext(messages=msgs))
+    msgs.pop(0)
+    # send the response back to the user
+    # try:
+    #     ctx.logger.info(
+    #         f"Fetching news url details for company_name: {msg.company_name}"
+    #     )
+    #     symbol = await fetch_symbol(msg.company_name)
+    #     ctx.logger.info(f" Symbol for company provided is {symbol}")
+    #     if symbol is not None:
+    #         url_list = await fetch_url(symbol)
+    #     else:
+    #         url_list = await fetch_url(msg.company_name)
+    #     ctx.logger.info(str(url_list))
+    #     await ctx.send(sender, UrlResponse(url_list=url_list))
+    # except Exception as e:
+    #     error_message = f"Error fetching job details: {str(e)}"
+    #     ctx.logger.error(error_message)
+    #     # Ensure the error message is sent as a string
+    #     await ctx.send(sender, ErrorResponse(error=str(error_message)))
+
+
+if __name__ == "__main__":
+    NewsAgent.run()
+
+ 
+# We create a new protocol which is compatible with the chat protocol spec. This ensures
+# compatibility between agents
+# protocol = Protocol(spec=chat_protocol_spec)
+# a2aprotocol = Protocol()
+# We define the handler for the chat messages that are sent to your agent
+# @agent.on_query(model=A2AContext,replies=A2AResponse)
+# async def handle_message(ctx: Context, sender: str, msg: A2AContext):
+    
  
  
-@protocol.on_message(ChatAcknowledgement)
-async def handle_ack(ctx: Context, sender: str, msg: ChatAcknowledgement):
-    # we are not interested in the acknowledgements for this example, but they can be useful to
-    # implement read receipts, for example.
-    print(ctx)
-    print(sender)
-    print(msg)
-    pass
+# @protocol.on_message(ChatAcknowledgement)
+# async def handle_ack(ctx: Context, sender: str, msg: ChatAcknowledgement):
+#     # we are not interested in the acknowledgements for this example, but they can be useful to
+#     # implement read receipts, for example.
+#     print(ctx)
+#     print(sender)
+#     print(msg)
+#     pass
  
  
 # attach the protocol to the agent
 # agent.include(protocol, publish_manifest=True)
-agent.include(a2aprotocol)
-agent.run()
+# agent.include(a2aprotocol)
+# agent.run()

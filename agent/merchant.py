@@ -11,9 +11,29 @@ from uagents_core.contrib.protocols.chat import (
     chat_protocol_spec,
 )
 
+system_prompt='''
+You are a merchant manager.
+You are provided with a list of all goods/service you have.
+An agent may contact with you, they may:
+- ask you to find the best match good/service based on their description, and in this case, you should provide the good's description and its price
+'''
+
 all_goods_list =[
     {
+        'desc':'''
+        John's Pizza
+        Menu:
+        - Onion-beef pizza: 15 USD
+        - Pineapple-chicken pizza: 15USD
+        - Pork pizza: 10USD
+        - Cheese pizza: 15USD
+        For pizza size:
+        - If you order large size, you have to add extra 5USD
+        Customize:
+        - You can place custom order with reasonable price
         
+
+'''
     }
 ]
 

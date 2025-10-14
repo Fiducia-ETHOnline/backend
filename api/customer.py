@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse,Response
 from pydantic import BaseModel
 from typing import List, Dict, Any
-from uagents.communication import send_message
-from agent.protocol.a2acontext import A2AContext
+from uagents.query import send_sync_message,query
+from agent.protocol.a2acontext import A2AContext,A2AResponse
 import json
 from .auth_dependencies import verify_jwt_token
 
@@ -31,13 +31,13 @@ async def send_chat_message(
     print(msgs)
     if not msgs:
         raise HTTPException(status_code=400, detail="Messages are required")
+    resp = await send_sync_message(custom_agent_address,A2AContext(messages=msgs),response_type=A2AResponse)
+    # async def event_stream():
+    #     async for chunk in send_message(custom_agent_address, A2AContext(messages=msgs)):
+    #         yield f"data: {json.dumps(chunk)}\n\n"
 
-    async def event_stream():
-        async for chunk in send_message(custom_agent_address, A2AContext(messages=msgs)):
-            # 将流式数据实时输出
-            yield f"data: {json.dumps(chunk)}\n\n"
 
-    return StreamingResponse(event_stream(), media_type="text/plain")
+    return resp
 
 @router.post('/orders/{orderId}/confirm-payment')
 async def confirm_payment(
