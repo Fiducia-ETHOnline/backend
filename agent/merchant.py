@@ -73,7 +73,8 @@ def real_upload_propose(desc:str,price:float,wallet_address:str):
     cid = upload_order_desc(product_desc,wallet_address)
     return cid
 
-def real_create_sc(hash)
+def real_create_sc(hash):
+    pass
 
 client = OpenAI(
     # By default, we are using the ASI:One LLM endpoint and model
