@@ -1,53 +1,62 @@
-from flask import Blueprint, request, jsonify
-from api.auth_decorator import token_required
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from typing import List, Dict, Any
+from uagents.communication import send_message
+from agent.protocol.a2acontext import A2AContext
+import json
+from .auth_dependencies import verify_jwt_token
 
+custom_agent_address = 'agent1qvuadg2lwxfyjkuzny0mj6v7v4xkecdk2at3fgvrwjr7mpjtcqqq2j0y8up'
 
-customer_bp = Blueprint('customer_api', __name__, url_prefix='/api')
+router = APIRouter(prefix="/api", tags=["customer"])
 
-@customer_bp.route('/chat/messages', methods=['POST'])
-@token_required() 
-def send_chat_message():
+class ChatMessageRequest(BaseModel):
+    messages: List[Dict[str, Any]]
 
-    data = request.get_json()
-    text = data.get('text') 
-    if not text:
-        return jsonify({"error": "Text is required"}), 400
+class PaymentConfirmationRequest(BaseModel):
+    txHash: str
 
+class DisputeRequest(BaseModel):
+    reason: str
 
-    response_data = {
-        "type": "payment",
-        "orderId": "order-abc-123",
-        "payload": {
-            "message": "Order created! Total is 25 USDC. Please confirm payment.",
-            "transaction": {
-                "to": "0xContractAddress...",
-                "value": "25000000",
-                "data": "0x..."
-            }
-        }
-    }
-    return jsonify(response_data), 200
+@router.post('/chat/messages')
+async def send_chat_message(
+    request: ChatMessageRequest,
+    current_user: dict = Depends(verify_jwt_token)
+):
+    print(request.dict())
 
-@customer_bp.route('/orders/<string:orderId>/confirm-payment', methods=['POST'])
-@token_required() 
-def confirm_payment(orderId):
+    msgs = request.messages
+    print(msgs)
+    if not msgs:
+        raise HTTPException(status_code=400, detail="Messages are required")
 
-    data = request.get_json()
-    tx_hash = data.get('txHash') 
+    async def event_stream():
+        async for chunk in send_message(custom_agent_address, A2AContext(messages=msgs)):
+            # 将流式数据实时输出
+            yield f"data: {json.dumps(chunk)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/plain")
+
+@router.post('/orders/{orderId}/confirm-payment')
+async def confirm_payment(
+    orderId: str,
+    request: PaymentConfirmationRequest,
+    current_user: dict = Depends(verify_jwt_token)
+):
+    tx_hash = request.txHash
     if not tx_hash:
-        return jsonify({"error": "Transaction hash (txHash) is required"}), 400
-
+        raise HTTPException(status_code=400, detail="Transaction hash (txHash) is required")
 
     response_data = {
         "status": "PENDING_CONFIRMATION",
         "message": "Payment submitted, awaiting blockchain confirmation."
     }
-    return jsonify(response_data), 200
+    return response_data
 
-@customer_bp.route('/orders', methods=['GET'])
-@token_required() 
-def get_my_orders():
-
+@router.get('/orders')
+async def get_my_orders(current_user: dict = Depends(verify_jwt_token)):
     mock_orders = [
         {
             "orderId": "order-abc-123",
@@ -56,33 +65,33 @@ def get_my_orders():
             "amount": "25 USDC"
         }
     ]
-    return jsonify(mock_orders), 200
+    return mock_orders
 
-@customer_bp.route('/orders/<string:orderId>/confirm-finish', methods=['POST'])
-@token_required() 
-def confirm_order_received(orderId):
-
-
+@router.post('/orders/{orderId}/confirm-finish')
+async def confirm_order_received(
+    orderId: str,
+    current_user: dict = Depends(verify_jwt_token)
+):
     response_data = {
         "orderId": orderId,
         "status": "COMPLETED",
         "message": "Order completed and funds released."
     }
-    return jsonify(response_data), 200
+    return response_data
 
-@customer_bp.route('/orders/<string:orderId>/dispute', methods=['POST'])
-@token_required() 
-def raise_dispute(orderId):
-
-    data = request.get_json()
-    reason = data.get('reason') 
+@router.post('/orders/{orderId}/dispute')
+async def raise_dispute(
+    orderId: str,
+    request: DisputeRequest,
+    current_user: dict = Depends(verify_jwt_token)
+):
+    reason = request.reason
     if not reason:
-        return jsonify({"error": "A reason for the dispute is required."}), 400
+        raise HTTPException(status_code=400, detail="A reason for the dispute is required.")
 
-    
     response_data = {
         "orderId": orderId,
         "status": "DISPUTED",
         "message": "Dispute has been raised. The funds will be frozen temporarily. Please wait for third-party to determine."
     }
-    return jsonify(response_data), 200
+    return response_data

@@ -10,7 +10,8 @@ from uagents_core.contrib.protocols.chat import (
     TextContent,
     chat_protocol_spec,
 )
-
+from protocol.a2acontext import A2AContext,A2AResponse
+import json
 system_prompt = '''
 You are an agent works as a sales person,
 your goal is to help user define their needs of a product, and help them create the order.
@@ -36,7 +37,7 @@ create_propose = {
   "parameters": {
     "type": "object",
     "properties": {
-        "desc": {"type": "str"},
+        "desc": {"type": "string"},
         "price":{"type":"number"}
       },
       "required": ["desc","price"]
@@ -52,7 +53,7 @@ consult_merchant = {
   "parameters": {
     "type": "object",
     "properties": {
-        "message":str
+        "message":"string"
       },
       "required": ["message"]
     },
@@ -78,55 +79,51 @@ agent = Agent(
 # We create a new protocol which is compatible with the chat protocol spec. This ensures
 # compatibility between agents
 protocol = Protocol(spec=chat_protocol_spec)
- 
+a2aprotocol = Protocol()
 # We define the handler for the chat messages that are sent to your agent
-@protocol.on_message(ChatMessage)
-async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
+@a2aprotocol.on_message(A2AContext)
+async def handle_message(ctx: Context, sender: str, msg: A2AContext):
     ctx.logger.info(msg)
-    await ctx.send(
-        sender,
-        ChatAcknowledgement(timestamp=datetime.now(), acknowledged_msg_id=msg.msg_id),
-    )
- 
-    # collect up all the text chunks
-    text = ''
-    for item in msg.content:
-        if isinstance(item, TextContent):
-            
-            text += item.text
- 
-    # query the model based on the user question
-    # dialog_context = 
-    try:
-        r = client.chat.completions.create(
-            model="asi1-mini",
-            messages=[
+    
+    msgs = [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": text},
-            ],
+                
+            ]
+    msgs.extend(msg.messages)
+    print(msgs)
+    try:
+       # 创建一个异步流式响应
+        with client.chat.completions.stream(
+            model="asi1-mini",
+            messages=msgs,
             max_tokens=2048,
-            # functions=[
-            #     create_propose,
-            #     consult_merchant
-            # ]
-        )
+            functions=[
+                create_propose,
+                consult_merchant
+            ],
+        ) as stream:
+            response_content = ""
+            async for event in stream:
+                if event.type == "message.delta":
+                    delta = event.delta.get("content", "")
+                    if delta:
+                        response_content += delta
+                        # 实时推送给用户（部分结果）
+                        await ctx.send(sender, A2AResponse(type='delta',content=delta))
+                elif event.type == "message.completed":
+                    # 流结束，打印最终结果
+                    ctx.logger.info("Streaming complete")
+
+            # 最终结果
+            msgs.append({"role": "assistant", "content": response_content})
  
-        response = str(r.choices[0].message.content)
+        
     except:
         ctx.logger.exception('Error querying model')
  
-    # send the response back to the user
-    await ctx.send(sender, ChatMessage(
-        timestamp=datetime.utcnow(),
-        msg_id=uuid4(),
-        content=[
-            # we send the contents back in the chat message
-            TextContent(type="text", text=response),
-            # we also signal that the session is over, this also informs the user that we are not recording any of the
-            # previous history of messages.
-            EndSessionContent(type="end-session"),
-        ]
-    ))
+    # msgs.pop(0)
+    # # send the response back to the user
+    # await ctx.send(sender, A2AContext(messages=msgs))
  
  
 @protocol.on_message(ChatAcknowledgement)
@@ -140,6 +137,6 @@ async def handle_ack(ctx: Context, sender: str, msg: ChatAcknowledgement):
  
  
 # attach the protocol to the agent
-agent.include(protocol, publish_manifest=True)
- 
+# agent.include(protocol, publish_manifest=True)
+agent.include(a2aprotocol)
 agent.run()

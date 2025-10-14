@@ -1,14 +1,14 @@
-from flask import Blueprint, request, jsonify
-from api.auth_decorator import token_required
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from .auth_dependencies import verify_jwt_token
 
+router = APIRouter(prefix="/api", tags=["merchant"])
 
-merchant_bp = Blueprint('merchant_api', __name__, url_prefix='/api')
+class UpdateStatusRequest(BaseModel):
+    status: str
 
-@merchant_bp.route('/tasks', methods=['GET'])
-@token_required(role="business") 
-def get_assigned_tasks():
-
-
+@router.get('/tasks')
+async def get_assigned_tasks(current_user: dict = Depends(verify_jwt_token)):
     mock_tasks = [
         {
             "orderId": "order-abc-123",
@@ -17,20 +17,21 @@ def get_assigned_tasks():
             "payout": "25 USDC"
         }
     ]
-    return jsonify(mock_tasks), 200
+    return mock_tasks
 
-@merchant_bp.route('/tasks/<string:orderId>/status', methods=['POST'])
-@token_required() 
-def update_task_status(orderId):
-
-    data = request.get_json()
-    new_status = data.get('status') 
+@router.post('/tasks/{orderId}/status')
+async def update_task_status(
+    orderId: str,
+    request: UpdateStatusRequest,
+    current_user: dict = Depends(verify_jwt_token)
+):
+    new_status = request.status
     if not new_status:
-        return jsonify({"error": "A new status is required."}), 400
+        raise HTTPException(status_code=400, detail="A new status is required.")
 
     response_data = {
         "orderId": orderId,
         "status": new_status,
         "message": "Status updated successfully."
     }
-    return jsonify(response_data), 200
+    return response_data

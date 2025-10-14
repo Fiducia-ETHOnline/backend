@@ -1,23 +1,30 @@
-from flask import Flask
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-from api.auth import auth_bp
-from api.customer import customer_bp
-from api.merchant import merchant_bp
-from flask_jwt_extended import (
-    JWTManager, create_access_token, jwt_required, get_jwt_identity
+from api.auth import router as auth_router
+from api.customer import router as customer_router
+from api.merchant import router as merchant_router
+
+app = FastAPI(title="Fiducia API", version="1.0.0")
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify allowed origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-app = Flask(__name__)
-app.config["JWT_SECRET_KEY"] = "aayotyrelqy8174udah"
-jwt = JWTManager(app)
-app.register_blueprint(auth_bp)
-app.register_blueprint(customer_bp)
-app.register_blueprint(merchant_bp)
+# Include routers
+app.include_router(auth_router)
+app.include_router(customer_router)
+app.include_router(merchant_router)
 
-@app.route("/")
-def index():
-    return "Welcome to the Fiducia API!"
+@app.get("/")
+async def index():
+    return {"message": "Welcome to the Fiducia API!"}
 
 if __name__ == '__main__':
-    
-    app.run(debug=True, port=5000)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000)
