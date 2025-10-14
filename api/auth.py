@@ -17,7 +17,7 @@ class LoginRequest(BaseModel):
 
 def get_nonce(address: str):
     global NONCE_STORE
-    # 随机生成 nonce
+
     nonce = f"{secrets.token_hex(8)}"
     NONCE_STORE[address.lower()] = nonce
     print(NONCE_STORE)
