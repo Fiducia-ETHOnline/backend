@@ -4,6 +4,7 @@ OrderContract specific integration module
 This module provides specialized functions for interacting with the OrderContract
 smart contract, including all order management operations and user queries.
 """
+from web3.exceptions import *
 
 from web3 import Web3
 from web3.contract import Contract
@@ -15,7 +16,7 @@ import logging
 from enum import IntEnum
 from dataclasses import dataclass
 from datetime import datetime
-
+from decimal import Decimal
 from .smart_contract import SmartContractManager
 from .exceptions import (
     ContractNotInitializedException,
@@ -116,6 +117,22 @@ class OrderContractManager:
         self._verify_connection()
     def set_user_private_key(self,key):
         self.user_account = Account.from_key(key)
+    def translate_status_to_msg(self,status:OrderStatus):
+        if status == OrderStatus.CANCELLED:
+            return 'This Order is cancelled by either buyer or seller'
+        elif status == OrderStatus.COMPLETED:
+            return 'This Order is marked as completed by user'
+        elif status == OrderStatus.CONFIRMED:
+            return 'This Order is confirmed by user, funds are released'
+        elif status == OrderStatus.IN_PROGRESS:
+            return 'This Order is just created and in progress'
+        elif status == OrderStatus.PROPOSED:
+            return 'This Order is proposed, price is answered by merchant'
+    def verify_tx(self,txhash:str) -> bool:
+        # try:
+        receipt = self.w3.eth.get_transaction_receipt(txhash)
+
+        return receipt['status'] == 1
 
     def _verify_connection(self):
         """Verify Web3 connection and contract setup"""
@@ -241,7 +258,7 @@ class OrderContractManager:
         except Exception as e:
             logger.error(f"Error proposing order: {str(e)}")
             raise
-    def build_confirm_order(self, order_id: str, user_address: Optional[str] = None) -> str:
+    def build_confirm_order(self, order_id: str, user_address: Optional[str] = None):
         """
         Confirm an order and pay for it (user function)
         
@@ -488,17 +505,18 @@ class OrderContractManager:
         """Get complete order details for a user's order"""
         user_address = to_checksum_address(user_address)
         offer = self.order_contract.functions.getUserOrderDetails(user_address, int(order_id)).call()
-        
+        print(offer)
         return OrderDetails(
             order_id=order_id,
             buyer=offer[0],
-            prompt_hash=offer[1].hex(),
-            answer_hash=offer[2].hex(),
-            price=wei_to_eth(offer[3]),
-            paid=wei_to_eth(offer[4]),
-            timestamp=datetime.fromtimestamp(offer[5]),
-            status=OrderStatus(offer[6]),
-            status_name=OrderStatus(offer[6]).name
+            seller=offer[1],
+            prompt_hash=offer[2].hex(),
+            answer_hash=offer[3].hex(),
+            price=wei_to_eth(offer[4]),
+            paid=wei_to_eth(offer[5]),
+            timestamp=datetime.fromtimestamp(offer[6]),
+            status=OrderStatus(offer[7]),
+            status_name=OrderStatus(offer[7]).name
         )
     
     def get_order_details_by_id(self, order_id: str) -> OrderDetails:

@@ -45,4 +45,5 @@ while True:
         ctx.append({'role':'assistant','content':resp['content']})
 
     elif msg_type == 'order':
-        print('✅ '+resp['content'])
+        print('✅ ')
+        print(resp['content'])

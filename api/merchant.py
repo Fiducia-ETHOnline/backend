@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from .auth_dependencies import verify_jwt_token
-
+from api.blockchain import *
 router = APIRouter(prefix="/api", tags=["merchant"])
 
 class UpdateStatusRequest(BaseModel):
@@ -9,6 +9,7 @@ class UpdateStatusRequest(BaseModel):
 
 @router.get('/tasks')
 async def get_assigned_tasks(current_user: dict = Depends(verify_jwt_token)):
+    # backend_ordercontract
     mock_tasks = [
         {
             "orderId": "order-abc-123",

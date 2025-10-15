@@ -228,6 +228,11 @@
             "internalType": "address"
           },
           {
+            "name": "seller",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
             "name": "promptHash",
             "type": "bytes32",
             "internalType": "bytes32"

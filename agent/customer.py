@@ -12,6 +12,7 @@ from uagents_core.contrib.protocols.chat import (
     TextContent,
     chat_protocol_spec,
 )
+from decimal import Decimal
 
 from agent.protocol.a3acontext import *
 import json,os
@@ -41,7 +42,8 @@ A normal process of your job is listed as follow:
 2. ask user their needs
 3. help user make their needs more in detail
 4. chat with a merchant agent using consult_merchant function to see which merchant has the best match to this result.
-4. Finally, You should have:
+4.1 When you return your result from merchant to user, you need to include the price of the product, the name of the merchant
+5. Finally, You should have:
 - detailed description of user's needs
 - reasonable price of such a order
 5. Then, ask user to confirm this order
@@ -53,12 +55,12 @@ create_propose = {
 "type": "function",
 "function": {
   "name": "create_propose",
-  "description": "Create an order proposal",
+  "description": "Create an order proposal. Price should be 2-decimal, a string for the price(just the price, no unit)",
   "parameters": {
     "type": "object",
     "properties": {
         "desc": {"type": "string"},
-        "price":{"type":"number"}
+        "price":{"type":"string"}
       },
       "required": ["desc","price"]
     }
@@ -115,7 +117,9 @@ A3ACustomerAgent = Agent(
     port=8000,
     seed="fiducia_seed",
     endpoint=["http://127.0.0.1:8000/submit"],
-    mailbox=True
+    mailbox=True,
+    readme_path='agent/customer_readme.md'
+
 )
 # Registering agent on Almanac and funding it.
 # fund_agent_if_low(A3ACustomerAgent.wallet.address())
@@ -169,7 +173,8 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                  arguments = json.loads(tool.function.arguments)
                  if function_name == 'create_propose':
                     desc = arguments['desc']
-                    price = arguments['price']
+                    price = str(Decimal(arguments['price']).quantize(Decimal('0.01')))
+
                     try:
                         digest = real_upload_order(wallet_address,desc,price)
                         orderid,txhash = real_create_propose(digest,wallet_address)
@@ -179,6 +184,13 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                         print(e)
                         await ctx.send(sender,A3AErrorPacket('Fail to create_propose!'))
                         return
+                    await ctx.send(sender,A3AOrderResponse(
+                        orderid=orderid,
+                        price=price,
+                        desc=desc,
+                        unsigned_transaction=json.dumps(transaction)
+                    ))
+                    
                     await ctx.send(sender,A3AResponse(type='order',content=json.dumps(transaction)))
                     return
                  else:

@@ -23,6 +23,6 @@ def CIDRebuild(digest:str):
         bytes.fromhex(digest),
         hashfun='sha2-256'
     ))
-    return cid
+    return str(cid)
     
 # print(CID2Digest('bafkreidm2z6jwkqkihvajtjfrmjf43hxrju2e75fbfb27x3ufy3cioreem'))

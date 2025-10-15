@@ -38,6 +38,7 @@ You need:
    If no product is matched, just tell the customer no matched product or and suggest a similar product.
    When responding, you should send both the product description and product's price to the customer
 2. You should never respond an emtpy string, even there is no best match, try to find the most similar one, if no similar one, just return some text to indicate the situation and give some suggestion
+3. You should ALWAYS include the merchant's name: Test Pizza Agent in EVERY response to user
 Here's your product list:
 1. pizza with meat: 15 USD
 2. pizza with onion: 10 USD
@@ -98,7 +99,8 @@ A3AMerchantAgent = Agent(
     port=8001,
     seed="fiducia_seed_merchant",
     endpoint=["http://127.0.0.1:8001/submit"],
-    mailbox=True
+    mailbox=True,
+    readme_path='agent/merchant_readme.md'
 )
 
 # Registering agent on Almanac and funding it.
@@ -115,11 +117,11 @@ async def agent_details(ctx: Context):
 @a3a_protocol.on_query(model=A3AContext, replies={A3AResponse})
 async def query_handler(ctx: Context, sender: str, msg: A3AContext):
     if msg.messages[-1]['role'] == 'answer_order':
-        payload = json.loads(msg.messages[-1]['content'])
+        payload:A3ACustomerProposeRequest = (msg.messages[-1]['content'])
         order_id = payload['orderId']
         price = payload['price']
         try:
-            txhash = real_answer_propose(order_id,price)
+            txhash = real_answer_propose(order_id,float(price))
         except Exception as e:
            print(e)
            ctx.send(sender,A3AErrorPacket('Fail to answer propose in smart contract!'))
