@@ -8,6 +8,7 @@ import json
 from .auth_dependencies import verify_jwt_token
 from eth_utils import to_checksum_address
 from blockchain.a3atoken_contract import A3ATokenContract
+from api.blockchain import *
 from web3 import Web3
 custom_agent_address = 'agent1qvuadg2lwxfyjkuzny0mj6v7v4xkecdk2at3fgvrwjr7mpjtcqqq2j0y8up'
 
@@ -26,3 +27,15 @@ async def send_chat_message(
     current_user: dict = Depends(verify_jwt_token)
 ):
     return token_contract.check_a3a_allowance(Web3.to_checksum_address(current_user['address']))
+
+@router.post('/pyusd/balance')
+async def send_chat_message(
+    current_user: dict = Depends(verify_jwt_token)
+):
+    return backend_ordercontract.get_pyusd_balance(current_user['address'])
+
+@router.post('/pyusd/allowance')
+async def send_chat_message(
+    current_user: dict = Depends(verify_jwt_token)
+):
+    return backend_ordercontract.get_pyusd_allowance(current_user['address'],backend_ordercontract.order_contract_address)

@@ -13,7 +13,8 @@ access_token = auth_res['token']
 headers = {'Authorization': f'Bearer {access_token}'}
 
 
-# 1. Check the user's wallet has at LEAST 20 A3AToken Allowance AND Balance
+# 1. Check the user's wallet has at LEAST 20 A3AToken Allowance AND Balance!
+# Remeber, in frontend, before really confirm order, check pyusd balance and allowance!
 resp= requests.post('http://127.0.0.1:5000/api/user/a3atoken/allowance', headers=headers).text
 allowance = float(resp)
 resp= requests.post('http://127.0.0.1:5000/api/user/a3atoken/balance', headers=headers).text
@@ -21,11 +22,18 @@ balance = float(resp)
 print(f'🔍 Your A3AToken allowance: {allowance}')
 print(f'🔍 Your A3AToken balance: {balance}')
 
+resp= requests.post('http://127.0.0.1:5000/api/user/pyusd/allowance', headers=headers).text
+allowance = float(resp)
+resp= requests.post('http://127.0.0.1:5000/api/user/pyusd/balance', headers=headers).text
+balance = float(resp)
+print(f'🔍 Your PYUSD allowance: {allowance}')
+print(f'🔍 Your PYUSD balance: {balance}')
+
 if balance<20:
     print("❌ Fail to do chat! The A3AToken balance is insufficient!")
     sys.exit(-1)
 if allowance<20:
-    # using ether.js maybe?
+    # using ether.js in frontend maybe?
     # This include private key signature
     approve_address(TEST_WALLET_PRIVATE_KEY,10000)
 #============== =============================== =======
