@@ -92,6 +92,10 @@ def real_upload_order(wallet,desc,price):
     digest = CID2Digest(cid)
     return digest
 
+def real_confirm_order(orderid,wallet):
+    return order_contract.build_confirm_order(orderid,wallet)
+    
+
 def real_create_propose(hash,wallet):
     return order_contract.propose_order('0x'+hash,wallet)
 
@@ -169,15 +173,13 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                     try:
                         digest = real_upload_order(wallet_address,desc,price)
                         orderid,txhash = real_create_propose(digest,wallet_address)
-                       
+                        txhash = await real_answer_propose(orderid,price)
+                        transaction = real_confirm_order(orderid,wallet_address)
                     except Exception as e:
                         print(e)
                         await ctx.send(sender,A3AErrorPacket('Fail to create_propose!'))
                         return
-                    await ctx.send(sender,A3AResponse(type='order',content=json.dumps({
-                        'orderId':orderid,
-                        'txhash':txhash
-                    })))
+                    await ctx.send(sender,A3AResponse(type='order',content=json.dumps(transaction)))
                     return
                  else:
                     message = arguments['message']

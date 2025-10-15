@@ -241,6 +241,60 @@ class OrderContractManager:
         except Exception as e:
             logger.error(f"Error proposing order: {str(e)}")
             raise
+    def build_confirm_order(self, order_id: str, user_address: Optional[str] = None) -> str:
+        """
+        Confirm an order and pay for it (user function)
+        
+        Args:
+            order_id: Order ID to confirm
+            user_address: User address (uses user_account if not provided)
+            
+        Returns:
+            Transaction hash
+        """
+        if not self.user_account and not user_address:
+            raise ValueError("User account or address required")
+        
+        from_address = user_address or self.user_account.address
+        from_address = to_checksum_address(from_address)
+        try:
+            # Get order details to check price
+            order_details = self.get_order_details_by_id(order_id)
+            total_amount = order_details.price + wei_to_eth(self.AGENT_FEE)
+            
+            # Check pyUSD balance
+            # balance = self.get_pyusd_balance(from_address)
+            # if balance < total_amount:
+            #     raise InsufficientFundsException(f"Insufficient pyUSD balance. Required: {total_amount}, Available: {balance}")
+            
+            # # Check and approve pyUSD spending if needed
+            # allowance = self.get_pyusd_allowance(from_address, self.order_contract_address)
+            # required_amount_wei = eth_to_wei(total_amount)
+            
+            # if allowance < required_amount_wei:
+            #     approve_tx = self.approve_pyusd_spending(required_amount_wei, from_address)
+            #     logger.info(f"Approved pyUSD spending: {approve_tx}")
+            
+            # Confirm order
+            transaction = self.order_contract.functions.confirmOrder(
+                int(order_id)
+            ).build_transaction({
+                'from': from_address,
+                'gas': 500000,
+                'gasPrice': self.w3.to_wei('20', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(from_address),
+            })
+            
+            # if self.user_account:
+            #     signed_txn = self.w3.eth.account.sign_transaction(transaction, self.user_account.key)
+            #     tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            #     return tx_hash.hex()
+            # else:
+            #     raise ValueError("User private key required for transaction signing")
+            return transaction    
+        except Exception as e:
+            logger.error(f"Error confirming order {order_id}: {str(e)}")
+            raise
     
     def confirm_order(self, order_id: str, user_address: Optional[str] = None) -> str:
         """
