@@ -140,7 +140,7 @@ class SmartContractManager:
             signed_txn = self.w3.eth.account.sign_transaction(transaction, self.private_key)
             
             # Send transaction
-            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
             tx_hash_hex = tx_hash.hex()
             
             logger.info(f"Sent transaction {function_name}: {tx_hash_hex}")
@@ -196,7 +196,7 @@ class SmartContractManager:
             }
             
             signed_txn = self.w3.eth.account.sign_transaction(transaction, self.private_key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
             tx_hash_hex = tx_hash.hex()
             
             logger.info(f"Sent {amount_eth} ETH to {to_address}: {tx_hash_hex}")

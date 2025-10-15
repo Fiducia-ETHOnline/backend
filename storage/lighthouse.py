@@ -12,10 +12,10 @@ def upload_order_desc(info,filename):
 
 def CID2Digest(cid:str):
     cid_decoded =CID.decode(cid)
-    print(cid_decoded.base)
-    print(cid_decoded.codec)
-    print(cid_decoded.hashfun)
-    print(cid_decoded.digest)
+    # print(cid_decoded.base)
+    # print(cid_decoded.codec)
+    # print(cid_decoded.hashfun)
+    # print(cid_decoded.digest)
     return cid_decoded.raw_digest.hex()
 
 def CIDRebuild(digest:str):
@@ -25,4 +25,4 @@ def CIDRebuild(digest:str):
     ))
     return cid
     
-print(CIDRebuild(CID2Digest('bafkreidm2z6jwkqkihvajtjfrmjf43hxrju2e75fbfb27x3ufy3cioreem')))
+# print(CID2Digest('bafkreidm2z6jwkqkihvajtjfrmjf43hxrju2e75fbfb27x3ufy3cioreem'))

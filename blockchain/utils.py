@@ -34,15 +34,15 @@ def to_checksum_address(address: str) -> str:
     Returns:
         Checksum address
     """
-    return Web3.toChecksumAddress(address)
+    return Web3.to_checksum_address(address)
 
 def wei_to_eth(wei: int) -> float:
     """Convert wei to ETH"""
-    return Web3.fromWei(wei, 'ether')
+    return Web3.from_wei(wei, 'ether')
 
 def eth_to_wei(eth: float) -> int:
     """Convert ETH to wei"""
-    return Web3.toWei(eth, 'ether')
+    return Web3.to_wei(eth, 'ether')
 
 def format_transaction_receipt(receipt: Dict) -> Dict[str, Any]:
     """

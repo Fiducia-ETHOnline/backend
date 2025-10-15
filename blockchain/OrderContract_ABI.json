@@ -28,6 +28,7 @@
     "outputs": [],
     "stateMutability": "nonpayable"
   },
+  
   {
     "type": "function",
     "name": "confirmOrder",
@@ -393,6 +394,11 @@
         "internalType": "address"
       },
       {
+        "name": "buyer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "promptHash",
         "type": "bytes32",
         "internalType": "bytes32"
@@ -433,6 +439,11 @@
         "name": "promptHash",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "userWalletAddress",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [
@@ -462,6 +473,11 @@
         "name": "priceForOffer",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "seller",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],

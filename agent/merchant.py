@@ -1,6 +1,8 @@
 from datetime import datetime
 from uuid import uuid4
-from storage.lighthouse import upload_order_desc
+from storage.lighthouse import upload_order_desc,CID2Digest
+from uagents.query import send_sync_message,query
+
 from openai import OpenAI
 from uagents import Context, Protocol, Agent
 from uagents_core.contrib.protocols.chat import (
@@ -10,43 +12,58 @@ from uagents_core.contrib.protocols.chat import (
     TextContent,
     chat_protocol_spec,
 )
-from agent.protocol.a2acontext import A2AContext,A2AResponse,A2AErrorPacket,A2AProposePacket
-import json
+from agent.protocol.a3acontext import *
+import json,os
+from blockchain.order_contract import OrderContractManager
 
+from agent.contract import get_erc20_abi,get_contract_abi
+order_contract = OrderContractManager(
+    provider_url=os.environ['CONTRACT_URL'],
+    order_contract_address=os.environ['AGENT_CONTRACT'],
+    pyusd_token_address=os.environ['PYUSD_ADDRESS'],
+    order_contract_abi=get_contract_abi(),
+    erc20_abi=get_erc20_abi(),
+    agent_controller_private_key=os.environ['AGENT_PRIVATE_KEY'],
+)
+
+a3a_protocol= create_a3a_protocol()
+
+MERCHANT_WALLET_ADDRESS ='0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f'
 
 system_prompt='''
-You are an agent works as a sales person,
-your goal is to help user define their information of a product, and help them sell this product online
-A normal process of your job is listed as follow:
-
-1. (optional) introduce yourself
-2. ask user their product
-3. help user make their product more in detail
-4. Finally, You should have:
-- detailed description of user's product
-- reasonable price of such a product
-5. Then, ask user to confirm this product
-6. Call create_propose to create such a product
+You are an agent works as a merchant seller:
+Customer may chat to you with their needs.
+You need:
+1. If customer tell you their need, you should check your product list, and find the best match one.
+   If no product is matched, just tell the customer no matched product or and suggest a similar product.
+   When responding, you should send both the product description and product's price to the customer
+2. You should never respond an emtpy string, even there is no best match, try to find the most similar one, if no similar one, just return some text to indicate the situation and give some suggestion
+Here's your product list:
+1. pizza with meat: 15 USD
+2. pizza with onion: 10 USD
+3. pizza with pineapple: 8 USD
+4. pizza with cheese: 12 USD
+5. Other custom pizza is also possible, you can give a reasonable price
 '''
 
-all_goods_list =[
-    {
-        'desc':'''
-        John's Pizza
-        Menu:
-        - Onion-beef pizza: 15 USD
-        - Pineapple-chicken pizza: 15USD
-        - Pork pizza: 10USD
-        - Cheese pizza: 15USD
-        For pizza size:
-        - If you order large size, you have to add extra 5USD
-        Customize:
-        - You can place custom order with reasonable price
+# all_goods_list =[
+#     {
+#         'desc':'''
+#         John's Pizza
+#         Menu:
+#         - Onion-beef pizza: 15 USD
+#         - Pineapple-chicken pizza: 15USD
+#         - Pork pizza: 10USD
+#         - Cheese pizza: 15USD
+#         For pizza size:
+#         - If you order large size, you have to add extra 5USD
+#         Customize:
+#         - You can place custom order with reasonable price
         
 
-'''
-    }
-]
+# '''
+#     }
+# ]
 
 create_propose = {
 "type": "function",
@@ -64,17 +81,9 @@ create_propose = {
   }
 }
 
-def real_upload_propose(desc:str,price:float,wallet_address:str):
-    product_desc = {
-        'desc':desc,
-        'price':price,
-        'owner':wallet_address
-    }
-    cid = upload_order_desc(product_desc,wallet_address)
-    return cid
-
-def real_create_sc(hash):
-    pass
+def real_answer_propose(orderid,price):
+   
+   return order_contract.propose_order_answer(orderid,'answer from merchant',price,seller_address=MERCHANT_WALLET_ADDRESS)
 
 client = OpenAI(
     # By default, we are using the ASI:One LLM endpoint and model
@@ -84,7 +93,7 @@ client = OpenAI(
     api_key='sk_01514396b3c742b3bad785a5e869e87b0da3d0d123fc4849bd57f19bf0075b92',
 )
   
-NewsAgent = Agent(
+A3AMerchantAgent = Agent(
     name="A2A Merchant Agent",
     port=8001,
     seed="fiducia_seed_merchant",
@@ -93,62 +102,72 @@ NewsAgent = Agent(
 )
 
 # Registering agent on Almanac and funding it.
-# fund_agent_if_low(NewsAgent.wallet.address())
+# fund_agent_if_low(A3AMerchantAgent.wallet.address())
 
 
 # On agent startup printing address
-@NewsAgent.on_event("startup")
+@A3AMerchantAgent.on_event("startup")
 async def agent_details(ctx: Context):
-    ctx.logger.info(f"Search Agent Address is {NewsAgent.address}")
+    ctx.logger.info(f"Search Agent Address is {A3AMerchantAgent.address}")
 
 
 # On_query handler for news_url request
-@NewsAgent.on_query(model=A2AContext, replies={A2AResponse})
-async def query_handler(ctx: Context, sender: str, msg: A2AContext):
-    
+@a3a_protocol.on_query(model=A3AContext, replies={A3AResponse})
+async def query_handler(ctx: Context, sender: str, msg: A3AContext):
+    if msg.messages[-1]['role'] == 'answer_order':
+        payload = json.loads(msg.messages[-1]['content'])
+        order_id = payload['orderId']
+        price = payload['price']
+        try:
+            txhash = real_answer_propose(order_id,price)
+        except Exception as e:
+           print(e)
+           ctx.send(sender,A3AErrorPacket('Fail to answer propose in smart contract!'))
+           return
+        await ctx.send(sender,A3ATXHashPacket(txhash))
+        return
     wallet_address = ''
     msgs = [
                 {"role": "system", "content": system_prompt},
                 
             ]
     for item in msg.messages:
-        if item['role'] == 'wallet':
-            wallet_address = item['content'].lower().strip()
-        else:
+        if item['role'] == 'user' or item['role'] == 'agent': 
             msgs.append(item)
-    if wallet_address == '':
-        ctx.send(sender,A2AErrorPacket('Cannot find wallet address in this context!'))
-        return
-    # msgs.extend(msg.messages)
+
+            
+    print(msgs)
     try:
       while True:
         r = client.chat.completions.create(
             model="asi1-mini",
             messages=msgs,
             max_tokens=2048,
-            tools=[
-                create_propose
-            ]
+
         )
+        print(r)
         tool_calls = r.choices[0].message.tool_calls
         # ctx.logger.warning(r.choices[0].message)
         
-        if tool_calls:
-            msgs.append(r.choices[0].message)
-            for tool in tool_calls:
+        # if tool_calls:
+        #     msgs.append(r.choices[0].message)
+        #     for tool in tool_calls:
                  
-                 function_name = tool.function.name
-                 arguments = json.loads(tool.function.arguments)
-                 if function_name == 'create_propose':
-                     desc = arguments['desc']
-                     price = arguments['price']
-                     cid = real_upload_propose(desc,price,wallet_address)
-                     ctx.send(sender,A2AProposePacket(desc,price,))
-                     return
-        else:
-          response = str(r.choices[0].message.content)
-          await ctx.send(sender, A2AResponse(type='chat',content=response))
-          return
+        #          function_name = tool.function.name
+        #          arguments = json.loads(tool.function.arguments)
+        #          if function_name == 'create_propose':
+        #              desc = arguments['desc']
+        #              price = arguments['price']
+        #              cid = real_upload_propose(desc,price,wallet_address)
+        #              cid_digest = CID2Digest(cid)
+        #              order_contract.propose_order(cid_digest,wallet_address)
+        #              ctx.send(sender,A3AProposePacket(desc,price,))
+        #              return
+        # else:
+        response = str(r.choices[0].message.content)
+        print(response)
+        await ctx.send(sender, A3AResponse(type='chat',content=response))
+        return
           
     except:
         ctx.logger.exception('Error querying model')
@@ -174,7 +193,5 @@ async def query_handler(ctx: Context, sender: str, msg: A2AContext):
     #     await ctx.send(sender, ErrorResponse(error=str(error_message)))
 
 
-if __name__ == "__main__":
-    NewsAgent.run()
+A3AMerchantAgent.include(a3a_protocol)
 
- 

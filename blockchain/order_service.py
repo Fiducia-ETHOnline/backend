@@ -10,7 +10,7 @@ from datetime import datetime
 from .order_contract import OrderContractManager, OrderStatus, OrderDetails
 from .event_listener import OrderEventListener, OrderEvent, UserEventSubscription
 from .agent_bridge import AgentOrderBridge, AgentMessage, AgentMessageQueue
-from .config import blockchain_settings, get_provider_url
+from .config import get_provider_url
 from .exceptions import (
     ContractNotInitializedException,
     TransactionFailedException,
@@ -126,7 +126,7 @@ class OrderContractService:
     
     # ========== USER ORDER FUNCTIONS ==========
     
-    async def create_user_order(self, user_address: str, prompt: str) -> Dict[str, Any]:
+    async def create_user_order(self, user_address: str, prompt_hash: str) -> Dict[str, Any]:
         """
         Create a new order for a user
         
@@ -142,23 +142,23 @@ class OrderContractService:
         try:
             # Use agent bridge if available for better tracking
             if self.agent_bridge:
-                request = await self.agent_bridge.process_user_order_request(user_address, prompt)
+                request = await self.agent_bridge.process_user_order_request(user_address, prompt_hash)
                 return {
                     'success': True,
                     'order_id': request.order_id,
                     'request_id': request.request_id,
-                    'prompt_hash': self.contract_manager.create_prompt_hash(prompt),
+                    'prompt_hash': prompt_hash,
                     'status': 'InProgress',
                     'message': 'Order created successfully'
                 }
             else:
                 # Direct contract interaction
-                order_id, tx_hash = self.contract_manager.propose_order(prompt, user_address)
+                order_id, tx_hash = self.contract_manager.propose_order(prompt_hash, user_address)
                 return {
                     'success': True,
                     'order_id': order_id,
                     'transaction_hash': tx_hash,
-                    'prompt_hash': self.contract_manager.create_prompt_hash(prompt),
+                    'prompt_hash': prompt_hash,
                     'status': 'InProgress',
                     'message': 'Order created successfully'
                 }

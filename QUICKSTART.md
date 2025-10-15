@@ -87,8 +87,8 @@ curl http://localhost:5000/orders/info
 ```python
 from blockchain.agent_integration import agent_process_user_request
 
-@agent.on_message(A2AContext)
-async def handle_request(ctx: Context, sender: str, msg: A2AContext):
+@agent.on_message(A3AContext)
+async def handle_request(ctx: Context, sender: str, msg: A3AContext):
     result = await agent_process_user_request(
         agent_address=ctx.agent.address,
         user_address=sender,

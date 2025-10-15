@@ -40,6 +40,7 @@ class OrderDetails:
     """Data class for order details"""
     order_id: str
     buyer: str
+    seller:str
     prompt_hash: str
     answer_hash: str
     price: float  # in pyUSD
@@ -113,10 +114,12 @@ class OrderContractManager:
             self.user_account = Account.from_key(user_private_key)
             
         self._verify_connection()
-    
+    def set_user_private_key(self,key):
+        self.user_account = Account.from_key(key)
+
     def _verify_connection(self):
         """Verify Web3 connection and contract setup"""
-        if not self.w3.isConnected():
+        if not self.w3.is_connected():
             raise ConnectionError("Failed to connect to Ethereum network")
         
         logger.info(f"Connected to Ethereum network. Latest block: {self.w3.eth.block_number}")
@@ -145,13 +148,12 @@ class OrderContractManager:
         Returns:
             Hex string of the hash
         """
-        return Web3.keccak(text=answer).hex()
+        return '0x'+Web3.keccak(text=answer).hex()
     
     # ========== USER FUNCTIONS ==========
-    
-    def propose_order(self, prompt: str, user_address: Optional[str] = None) -> Tuple[str, str]:
+    def build_propose_order_transaction(self,prompt_hash:str,user_address:str):
         """
-        Create a new order proposal (user function)
+        Create a new order proposal but now real send (user function)
         
         Args:
             prompt: User prompt text
@@ -162,10 +164,11 @@ class OrderContractManager:
         """
         if not self.user_account and not user_address:
             raise ValueError("User account or address required")
-        
-        prompt_hash = self.create_prompt_hash(prompt)
+        if user_address:
+            user_address = to_checksum_address(user_address)
+        # prompt_hash = self.create_prompt_hash(prompt)
         from_address = user_address or self.user_account.address
-        
+        # print(f'from_address is {from_address}')
         try:
             # Build transaction
             transaction = self.order_contract.functions.proposeOrder(
@@ -176,25 +179,61 @@ class OrderContractManager:
                 'gasPrice': self.w3.to_wei('20', 'gwei'),
                 'nonce': self.w3.eth.get_transaction_count(from_address),
             })
+            return transaction
+           
+        except Exception as e:
+            logger.error(f"Error proposing order: {str(e)}")
+            raise
+    def propose_order(self, prompt_hash: str, user_wallet_address: str) -> Tuple[str, str]:
+        """
+        Create a new order proposal (user function)
+        
+        Args:
+            prompt: User prompt text
+            user_address: User address (uses user_account if not provided)
+            
+        Returns:
+            Tuple of (order_id, transaction_hash)
+        """
+        # if not self.user_account and not user_address:
+        #     raise ValueError("User account or address required")
+        # if user_address:
+        #     user_address = to_checksum_address(user_address)
+        # prompt_hash = self.create_prompt_hash(prompt)
+        from_address =  self.agent_account.address
+        # print(f'from_address is {from_address}')
+        try:
+            # Build transaction
+            transaction = self.order_contract.functions.proposeOrder(
+                prompt_hash,
+                to_checksum_address(user_wallet_address)
+            ).build_transaction({
+                'from': from_address,
+                'gas': 500000,
+                'gasPrice': self.w3.to_wei('20', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(from_address),
+            })
             
             # Sign and send transaction
-            if self.user_account:
-                signed_txn = self.w3.eth.account.sign_transaction(transaction, self.user_account.key)
-                tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
-            else:
-                raise ValueError("User private key required for transaction signing")
+            # if self.user_account:
+            signed_txn = self.w3.eth.account.sign_transaction(transaction, self.agent_account.key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            # else:
+                # raise ValueError("User private key required for transaction signing")
             
             # Wait for receipt
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            
             # Extract order ID from events
+
+            print(receipt)
             for log in receipt.logs:
                 try:
                     decoded_log = self.order_contract.events.OrderProposed().process_log(log)
                     order_id = str(decoded_log['args']['offerId'])
                     logger.info(f"Order created: {order_id}")
                     return order_id, tx_hash.hex()
-                except:
+                except Exception as e:
+                    print(e)
                     continue
                     
             raise Exception("OrderProposed event not found in transaction receipt")
@@ -249,7 +288,7 @@ class OrderContractManager:
             
             if self.user_account:
                 signed_txn = self.w3.eth.account.sign_transaction(transaction, self.user_account.key)
-                tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
                 return tx_hash.hex()
             else:
                 raise ValueError("User private key required for transaction signing")
@@ -286,7 +325,7 @@ class OrderContractManager:
             
             if self.user_account:
                 signed_txn = self.w3.eth.account.sign_transaction(transaction, self.user_account.key)
-                tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
                 return tx_hash.hex()
             else:
                 raise ValueError("User private key required for transaction signing")
@@ -297,7 +336,7 @@ class OrderContractManager:
     
     # ========== AGENT FUNCTIONS ==========
     
-    def propose_order_answer(self, order_id: str, answer: str, price_pyusd: float) -> str:
+    def propose_order_answer(self, order_id: str, answer: str, price_pyusd: float,seller_address:str) -> str:
         """
         Propose an answer and price for an order (agent function)
         
@@ -314,21 +353,26 @@ class OrderContractManager:
         
         answer_hash = self.create_answer_hash(answer)
         price_wei = eth_to_wei(price_pyusd)
-        
+        controller_onchain = self.order_contract.functions.getAgentController().call()
+
+
         try:
-            transaction = self.order_contract.functions.proposeOrderAnswer(
+            txn = self.order_contract.functions.proposeOrderAnswer(
                 answer_hash,
                 int(order_id),
-                price_wei
+                price_wei,
+                to_checksum_address(seller_address)
             ).build_transaction({
                 'from': self.agent_account.address,
+                'nonce': self.w3.eth.get_transaction_count(self.agent_account.address),
                 'gas': 300000,
                 'gasPrice': self.w3.to_wei('20', 'gwei'),
-                'nonce': self.w3.eth.get_transaction_count(self.agent_account.address),
             })
-            
-            signed_txn = self.w3.eth.account.sign_transaction(transaction, self.agent_account.key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+
+            signed_txn = self.w3.eth.account.sign_transaction(txn, self.agent_account.key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            print("✅ sent:", tx_hash.hex())
             return tx_hash.hex()
             
         except Exception as e:
@@ -359,7 +403,7 @@ class OrderContractManager:
             })
             
             signed_txn = self.w3.eth.account.sign_transaction(transaction, self.agent_account.key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
             return tx_hash.hex()
             
         except Exception as e:
@@ -410,13 +454,14 @@ class OrderContractManager:
         return OrderDetails(
             order_id=order_id,
             buyer=offer[0],
-            prompt_hash=offer[1].hex(),
-            answer_hash=offer[2].hex(),
-            price=wei_to_eth(offer[3]),
-            paid=wei_to_eth(offer[4]),
-            timestamp=datetime.fromtimestamp(offer[5]),
-            status=OrderStatus(offer[6]),
-            status_name=OrderStatus(offer[6]).name
+            seller=offer[1],
+            prompt_hash=offer[2].hex(),
+            answer_hash=offer[3].hex(),
+            price=wei_to_eth(offer[4]),
+            paid=wei_to_eth(offer[5]),
+            timestamp=datetime.fromtimestamp(offer[6]),
+            status=OrderStatus(offer[7]),
+            status_name=OrderStatus(offer[7]).name
         )
     
     def has_user_order(self, user_address: str, order_id: str) -> bool:
@@ -464,7 +509,7 @@ class OrderContractManager:
             
             if self.user_account:
                 signed_txn = self.w3.eth.account.sign_transaction(transaction, self.user_account.key)
-                tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
                 return tx_hash.hex()
             else:
                 raise ValueError("User private key required for transaction signing")
@@ -492,6 +537,6 @@ class OrderContractManager:
             "agent_controller": self.get_agent_controller(),
             "agent_fee_pyusd": self.get_agent_fee(),
             "hold_period_seconds": self.HOLD_PERIOD,
-            "network_connected": self.w3.isConnected(),
+            "network_connected": self.w3.is_connected(),
             "latest_block": self.w3.eth.block_number
         }

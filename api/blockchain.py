@@ -113,34 +113,6 @@ async def get_service_info(current_user=Depends(get_current_user)):
             detail=str(e)
         )
 
-# ========== USER ORDER ENDPOINTS ==========
-
-@router.post("/create")
-async def create_order(
-    request: CreateOrderRequest,
-    current_user=Depends(get_current_user)
-):
-    """Create a new order for a user"""
-    try:
-        result = await order_contract_service.create_user_order(
-            user_address=request.user_address,
-            prompt=request.prompt
-        )
-        
-        if not result.get('success', False):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.get('message', 'Failed to create order')
-            )
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"Error creating order: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
 
 @router.post("/confirm")
 async def confirm_order(
@@ -169,62 +141,6 @@ async def confirm_order(
             detail=str(e)
         )
 
-@router.post("/cancel")
-async def cancel_order(
-    request: CancelOrderRequest,
-    current_user=Depends(get_current_user)
-):
-    """Cancel an order and get refund"""
-    try:
-        result = await order_contract_service.cancel_user_order(
-            user_address=request.user_address,
-            order_id=request.order_id
-        )
-        
-        if not result.get('success', False):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.get('message', 'Failed to cancel order')
-            )
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"Error cancelling order: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-# ========== AGENT ENDPOINTS ==========
-
-@router.post("/agent/answer")
-async def agent_propose_answer(
-    request: AgentAnswerRequest,
-    current_user=Depends(get_current_user)
-):
-    """Agent proposes an answer to an order"""
-    try:
-        result = await order_contract_service.agent_propose_answer(
-            order_id=request.order_id,
-            answer=request.answer,
-            price_pyusd=request.price_pyusd
-        )
-        
-        if not result.get('success', False):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.get('message', 'Failed to propose answer')
-            )
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"Error proposing answer: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
 
 @router.post("/agent/finalize")
 async def agent_finalize_order(
