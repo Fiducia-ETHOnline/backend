@@ -5,9 +5,9 @@ from web3 import Web3
 
 
 API_BASE = "http://127.0.0.1:5000/api/auth"
-PRIVATE_KEY = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" 
-def auth_login():
-    address = Account.from_key(PRIVATE_KEY).address
+# PRIVATE_KEY = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" 
+def auth_login(private_key):
+    address = Account.from_key(private_key).address
     print(f"🪪 Test address: {address}")
 
     print("\n[1] Get nonce...")
@@ -21,7 +21,7 @@ def auth_login():
 
     print("\n[2] Sign using nonce...")
     msg = encode_defunct(text=nonce)
-    signed = Account.sign_message(msg, private_key=PRIVATE_KEY)
+    signed = Account.sign_message(msg, private_key=private_key)
     signature = signed.signature.hex()
     print("✅ Signed:", signature)
 
