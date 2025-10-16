@@ -2,10 +2,12 @@ fastapi
 uvicorn[standard]
 python-jose[cryptography]
 python-multipart
-uagents==0.20.10
+uagents==0.22.10
 openai
 requests
 web3
 eth-account
 pydantic[dotenv]
 PyJWT
+lighthouseweb3
+multiformats
