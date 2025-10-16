@@ -227,3 +227,28 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **🚀 Ready for production deployment with comprehensive smart contract integration, real-time events, and ASI agent communication!**
+
+## Agents
+
+- Customer Agent: see `agent/customer_readme.md`
+- Merchant Agent: see `agent/merchant_readme.md`
+
+## Protocols (Summary)
+
+- ChatProtocol (uAgents): natural language chat for human ↔ agent and agent ↔ agent
+- A3AContext: internal structured messages for order-related intents
+
+Example A3A message:
+
+```
+{
+  "message_id": "msg_12345",
+  "sender_agent": "agent1q...",
+  "recipient_agent": "agent1q...",
+  "type": "order_request",
+  "data": {
+    "desc": "2x cheese pizza, large",
+    "price": "12.00"
+  }
+}
+```

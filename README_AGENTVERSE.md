@@ -15,6 +15,10 @@ What makes this Agent unique:
 
 **Agent Address**: agent1qvuadg2lwxfyjkuzny0mj6v7v4xkecdk2at3fgvrwjr7mpjtcqqq2j0y8up
 
+Related Docs:
+- Customer Agent README: `agent/customer_readme.md`
+- Merchant Agent README: `agent/merchant_readme.md`
+
 ## Key Features
 
 🔗 **OrderContract Integration**: Complete smart contract workflow with order lifecycle management  
