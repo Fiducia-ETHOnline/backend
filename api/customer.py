@@ -42,7 +42,8 @@ async def send_chat_message(
     final_msg = []
     final_msg.append(wallet_msg)
     for item in msgs:
-        final_msg.append(A3AMessage(role=item['role'],content=item['content']))
+        if item['role'] == 'user' or item['role'] == 'assistant':
+            final_msg.append(A3AMessage(role=item['role'],content=item['content']))
     final_msg.extend(msgs)
     resp = await send_sync_message(custom_agent_address,A3AContext(messages=final_msg),response_type=A3AResponse)
     # async def event_stream():
