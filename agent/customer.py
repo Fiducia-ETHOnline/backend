@@ -23,6 +23,13 @@ from agent.contract import get_erc20_abi,get_contract_abi
 # Load environment variables from .env
 load_dotenv()
 from hyperon import MeTTa
+from metta.utils import (
+    create_metta,
+    add_menu_item,
+    get_menu_for_merchant,
+    get_item_price,
+)
+from metta.knowledge import initialize_knowledge_graph, seed_merchant_example
 
 order_contract = OrderContractManager(
     provider_url=os.environ['CONTRACT_URL'],
@@ -121,6 +128,46 @@ client = OpenAI(
     api_key=_asi_api_key,
 )
  
+# ------------------------------
+# MeTTa integration (customer-side)
+# ------------------------------
+
+# Local MeTTa instance for querying merchant data.
+METTA_INSTANCE: MeTTa | None = create_metta()
+if METTA_INSTANCE is not None:
+    # Initialize base knowledge (optional/neutral)
+    initialize_knowledge_graph(METTA_INSTANCE)
+    # Minimal merchant-facing seed for demo parity with merchant agent
+    seed_merchant_example(METTA_INSTANCE, "TestPizzaAgent")
+    add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "meat_pizza", "15")
+    add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "onion_pizza", "10")
+    add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "pineapple_pizza", "8")
+    add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "cheese_pizza", "12")
+
+
+def _lookup_price_from_metta(desc: str, merchant: str = "TestPizzaAgent") -> tuple[str | None, str | None]:
+    """Find a suitable (item, price) from MeTTa given a user-provided description.
+    Strategy: match menu item names that appear in the description (underscore/space-insensitive),
+    else fall back to the cheapest item.
+    """
+    if METTA_INSTANCE is None:
+        return None, None
+    menu = get_menu_for_merchant(METTA_INSTANCE, merchant) or []
+    norm_desc = desc.lower().replace("_", " ")
+    def norm_item(n: str) -> str:
+        return n.replace("_", " ").lower()
+    for item, price in menu:
+        if norm_item(item) in norm_desc:
+            return item, price
+    # Fallback to cheapest
+    if menu:
+        cheapest = min(
+            menu,
+            key=lambda x: float(x[1]) if (x and x[1] is not None) else float("inf"),
+        )
+        return cheapest
+    return None, None
+ 
 A3ACustomerAgent = Agent(
     name="A2A Customer Agent",
     port=8000,
@@ -182,7 +229,16 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                  arguments = json.loads(tool.function.arguments)
                  if function_name == 'create_propose':
                     desc = arguments['desc']
-                    price = str(Decimal(arguments['price']).quantize(Decimal('0.01')))
+                    # Try to validate/normalize price; if invalid/missing, consult MeTTa
+                    item_hint = None
+                    try:
+                        price = str(Decimal(arguments['price']).quantize(Decimal('0.01')))
+                    except Exception:
+                        item_hint, metta_price = _lookup_price_from_metta(desc)
+                        if metta_price is not None:
+                            price = str(Decimal(metta_price).quantize(Decimal('0.01')))
+                        else:
+                            price = str(Decimal('0').quantize(Decimal('0.01')))
 
                     try:
                         digest = real_upload_order(wallet_address,desc,price)

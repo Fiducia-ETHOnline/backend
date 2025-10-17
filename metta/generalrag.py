@@ -49,7 +49,7 @@ class GeneralRAG:
         return f"Added {relation_type}: {subject} → {object_value}"
     
     def get_specific_models(self, model: str):
-        """get specific instances of models from the knowldege graphs"""
+        """Get specific instances of models from the knowledge graph."""
         query_str = f'!(match &self (specificInstance {model} $specific_model) $specific_model)'
         results = self.metta.run(query_str)
         return results.pop()

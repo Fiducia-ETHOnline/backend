@@ -215,3 +215,9 @@ def initialize_knowledge_graph(metta: MeTTa):
     metta.space().add_atom(E(S("faq"), S("How do I debug agent issues?"), ValueAtom("Use agent inspector URLs, check logs for error messages, verify agent registration on Almanac, and test with simple message exchanges.")))
     metta.space().add_atom(E(S("faq"), S("My agent isn't discoverable"), ValueAtom("Ensure your agent has a comprehensive readme with tags, domain descriptions, and clear input/output models for better search visibility.")))
     metta.space().add_atom(E(S("faq"), S("ASI:One API not working"), ValueAtom("Verify your API key is correct, check rate limits, ensure proper request format, and validate your authentication headers.")))
+
+def seed_merchant_example(metta: MeTTa, merchant_name: str):
+    """Optional: seed minimal merchant-facing data for demos/tests."""
+    # Description and hours are intentionally minimal; real data should come from merchant setup flows.
+    metta.space().add_atom(E(S("merchant-desc"), S(merchant_name), ValueAtom("Cozy pizza place with classic and specialty pies.")))
+    metta.space().add_atom(E(S("merchant-hours"), S(merchant_name), ValueAtom("Mon–Sun 10:00–22:00")))

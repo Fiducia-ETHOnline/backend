@@ -76,6 +76,35 @@ cd backend
 pip install -r requirements.txt
 ```
 
+### Python version and virtual environment (recommended)
+
+On macOS with Homebrew Python, pip often refuses system-wide installs due to PEP 668 ("externally-managed environment"). Also, the `hyperon` package currently ships wheels for Python 3.11 but not for 3.13. To avoid issues and keep dependencies isolated, use a virtual environment with Python 3.11.
+
+- Why you see `(.venv)` in your terminal: it means a virtual environment is active in that shell. While active, `python` and `pip` point to `.venv`'s interpreter and site-packages. You do not need to deactivate constantly—only if you want to switch back to your system Python in the same shell.
+- Deactivate venv: `deactivate`
+- New terminals start without the venv; activate it again when needed.
+
+Recommended setup (macOS/Homebrew):
+
+```bash
+# Ensure Python 3.11 is available (required for hyperon)
+python3.11 -V
+
+# Create and activate a virtual environment
+python3.11 -m venv .venv
+source .venv/bin/activate
+
+# Install project dependencies inside the venv
+python -m pip install -r requirements.txt
+```
+
+VS Code tip:
+- Press Cmd+Shift+P → "Python: Select Interpreter" → choose `.venv/bin/python` so the editor uses the venv automatically.
+
+Notes:
+- `.venv` is ignored by Git (see `.gitignore`).
+- If you insist on system installs, align the interpreter and pip (e.g., `/opt/homebrew/bin/python3.11 -m pip install -r requirements.txt`). Using Python 3.13 will not work for `hyperon` at the time of writing.
+
 ### 3. Smart Contract Setup
 ```bash
 # Clone smart contract repository
@@ -203,6 +232,37 @@ python test/chat.py          # Chat functionality
 python test/get_orders.py    # Order retrieval
 python test/auth.py          # Authentication
 ```
+
+### MeTTa Knowledge Graph (📚)
+
+This project integrates a lightweight knowledge graph using Hyperon/MeTTa to store and query agent/domain facts.
+
+- Key files:
+  - `metta/knowledge.py` – seeds the knowledge graph (capabilities, solutions, FAQs, etc.)
+  - `metta/generalrag.py` – small RAG helper for querying the graph
+  - `metta/utils.py` – helpers for app logic (e.g., storing merchant menus as MeTTa relations)
+  - `metta/test.py` – runnable tests that exercise add → query → remove (tombstone) flows
+
+- Why `python -m metta.test` works: `metta/` is a Python package (has `__init__.py`), so you can run the module path with `-m`. This uses package-relative imports and avoids path issues.
+
+- How to run MeTTa tests:
+  ```bash
+  # Ensure you are in the repo root and venv is active (Python 3.11 required)
+  source .venv/bin/activate
+
+  # Run the MeTTa tests
+  python -m metta.test
+  ```
+  Expected output includes:
+  - Model/capability listings
+  - Menu add/query output
+  - Removal via tombstone, then filtered query
+  - Final line: `All MeTTa tests passed ✔️`
+
+Implementation notes:
+- We use MeTTa relations like `(menu <merchant> <item>)` and `(price <item> <value>)`.
+- A logical “remove” writes a tombstone `(removed-menu <merchant> <item>)`, which `get_menu_for_merchant` filters out.
+- Test code contains some debug logs to help validate graph behavior; these are only in the test helper and not used by live API routes.
 
 ### Manual Testing
 ```bash

@@ -13,17 +13,120 @@ def add_menu_item(metta: MeTTa, merchant_name: str, item_name: str, price: str):
     metta.space().add_atom(E(S("price"), S(item_name), ValueAtom(price)))
 
 def get_menu_for_merchant(metta: MeTTa, merchant_name: str):
-    """Retrieve items for a merchant: returns list of (item, price)."""
-    items = metta.run(f"!(match &self (menu {merchant_name} $item) $item)")
+    """Retrieve items for a merchant: returns list of (item, price).
+
+    Implementation note: We first collect all (merchant, item) pairs from the graph and
+    filter in Python. This avoids edge cases with symbol quoting in MeTTa query strings.
+    """
+    pairs = metta.run("!(match &self (menu $m $i) ($m $i))")
     results = []
-    for r in items or []:
-        if not r:
+
+    def _has_any_match(res) -> bool:
+        """Return True if the MeTTa result set contains any non-empty match.
+        Hyperon can return structures like [[], []] when there are no matches.
+        """
+        if not res:
+            return False
+        for row in res:
+            # A non-list row is a match
+            if not isinstance(row, list):
+                return True
+            # A list row with any elements is a match
+            if isinstance(row, list) and len(row) > 0:
+                return True
+        return False
+
+    def handle_pair(m_sym: str, i_sym: str):
+        if m_sym != merchant_name:
+            return
+        removed_res = metta.run(f"!(match &self (removed-menu {m_sym} {i_sym}) $x)")
+        if _has_any_match(removed_res):
+            return
+        price_res = metta.run(f"!(match &self (price {i_sym} $p) $p)")
+        # Use the latest price if multiple price entries exist
+        price = price_res[-1][0].get_object().value if price_res and price_res[-1] else None
+        results.append((i_sym, price))
+
+    for r in pairs or []:
+        # Case 1: r looks like [m, i]
+        if isinstance(r, list) and len(r) == 2 and not str(r[0]).startswith("("):
+            handle_pair(str(r[0]), str(r[1]))
             continue
-        item = str(r[0])
-        price_res = metta.run(f"!(match &self (price {item} $p) $p)")
-        price = price_res[0][0].get_object().value if price_res and price_res[0] else None
-        results.append((item, price))
+        # Case 2: r is a list of expression atoms like "(m i)"
+        if isinstance(r, list):
+            for e in r:
+                s = str(e)
+                if s.startswith("(") and s.endswith(")"):
+                    try:
+                        m_sym, i_sym = s[1:-1].split(" ", 1)
+                        handle_pair(m_sym, i_sym)
+                    except ValueError:
+                        continue
+        else:
+            # Fallback: try to parse a single expression atom
+            s = str(r)
+            if s.startswith("(") and s.endswith(")"):
+                try:
+                    m_sym, i_sym = s[1:-1].split(" ", 1)
+                    handle_pair(m_sym, i_sym)
+                except ValueError:
+                    pass
     return results
+
+# Merchant metadata helpers
+
+def set_merchant_description(metta: MeTTa, merchant_name: str, description: str):
+    """Set or update a merchant's public description."""
+    metta.space().add_atom(E(S("merchant-desc"), S(merchant_name), ValueAtom(description)))
+
+def get_merchant_description(metta: MeTTa, merchant_name: str):
+    """Get the latest merchant description, if any."""
+    res = metta.run(f"!(match &self (merchant-desc {merchant_name} $d) $d)")
+    return res[-1][0].get_object().value if res and res[-1] else None
+
+def set_open_hours(metta: MeTTa, merchant_name: str, hours: str):
+    """Set store open hours, e.g., 'Mon-Sun 10:00-22:00'."""
+    metta.space().add_atom(E(S("merchant-hours"), S(merchant_name), ValueAtom(hours)))
+
+def get_open_hours(metta: MeTTa, merchant_name: str):
+    res = metta.run(f"!(match &self (merchant-hours {merchant_name} $h) $h)")
+    return res[-1][0].get_object().value if res and res[-1] else None
+
+def set_location(metta: MeTTa, merchant_name: str, location: str):
+    metta.space().add_atom(E(S("merchant-location"), S(merchant_name), ValueAtom(location)))
+
+def get_location(metta: MeTTa, merchant_name: str):
+    res = metta.run(f"!(match &self (merchant-location {merchant_name} $l) $l)")
+    return res[-1][0].get_object().value if res and res[-1] else None
+
+def add_category(metta: MeTTa, merchant_name: str, category: str):
+    metta.space().add_atom(E(S("merchant-category"), S(merchant_name), S(category)))
+
+def list_categories(metta: MeTTa, merchant_name: str):
+    res = metta.run(f"!(match &self (merchant-category {merchant_name} $c) $c)")
+    return [str(r[0]) for r in (res or []) if r]
+
+# Item details
+
+def set_item_description(metta: MeTTa, item_name: str, description: str):
+    metta.space().add_atom(E(S("item-desc"), S(item_name), ValueAtom(description)))
+
+def get_item_description(metta: MeTTa, item_name: str):
+    res = metta.run(f"!(match &self (item-desc {item_name} $d) $d)")
+    return res[-1][0].get_object().value if res and res[-1] else None
+
+def update_item_price(metta: MeTTa, item_name: str, new_price: str):
+    """Append a new price value; retrieval will use the latest entry."""
+    metta.space().add_atom(E(S("price"), S(item_name), ValueAtom(new_price)))
+
+def get_item_price(metta: MeTTa, item_name: str):
+    res = metta.run(f"!(match &self (price {item_name} $p) $p)")
+    return res[-1][0].get_object().value if res and res[-1] else None
+
+def remove_menu_item(metta: MeTTa, merchant_name: str, item_name: str):
+    """Soft-remove a menu item by writing a tombstone relation (removed-menu merchant item)."""
+    metta.space().add_atom(E(S("removed-menu"), S(merchant_name), S(item_name)))
+    return True
 
 class LLM:
     def __init__(self, api_key):
