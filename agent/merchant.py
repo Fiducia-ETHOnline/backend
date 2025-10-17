@@ -23,7 +23,7 @@ order_contract = OrderContractManager(
     pyusd_token_address=os.environ['PYUSD_ADDRESS'],
     order_contract_abi=get_contract_abi(),
     erc20_abi=get_erc20_abi(),
-    agent_controller_private_key=os.environ['AGENT_PRIVATE_KEY'],
+    # agent_controller_private_key=os.environ['AGENT_PRIVATE_KEY'],
 )
 
 a3a_protocol= create_a3a_protocol()
@@ -82,9 +82,6 @@ create_propose = {
   }
 }
 
-def real_answer_propose(orderid,price):
-   
-   return order_contract.propose_order_answer(orderid,'answer from merchant',price,seller_address=MERCHANT_WALLET_ADDRESS)
 
 client = OpenAI(
     # By default, we are using the ASI:One LLM endpoint and model
@@ -116,17 +113,8 @@ async def agent_details(ctx: Context):
 # On_query handler for news_url request
 @a3a_protocol.on_query(model=A3AContext, replies={A3AResponse})
 async def query_handler(ctx: Context, sender: str, msg: A3AContext):
-    if msg.messages[-1]['role'] == 'answer_order':
-        payload:A3ACustomerProposeRequest = (msg.messages[-1]['content'])
-        order_id = payload['orderId']
-        price = payload['price']
-        try:
-            txhash = real_answer_propose(order_id,float(price))
-        except Exception as e:
-           print(e)
-           ctx.send(sender,A3AErrorPacket('Fail to answer propose in smart contract!'))
-           return
-        await ctx.send(sender,A3ATXHashPacket(txhash))
+    if msg.messages[-1]['role'] == 'query_wallet':
+        await ctx.send(sender,A3AWalletResponse(MERCHANT_WALLET_ADDRESS))
         return
     wallet_address = ''
     msgs = [

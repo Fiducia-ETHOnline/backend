@@ -4,7 +4,7 @@ from eth_account.messages import encode_defunct
 from web3 import Web3
 
 
-API_BASE = "http://127.0.0.1:5000/api/auth"
+API_BASE = "https://fiduciademo.123a.club/api/auth"
 # PRIVATE_KEY = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" 
 def auth_login(private_key):
     address = Account.from_key(private_key).address

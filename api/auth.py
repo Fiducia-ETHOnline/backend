@@ -55,17 +55,21 @@ async def login_with_signature(request: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
     NONCE_STORE.pop(address.lower(), None)
+    role = 'customer'
 
+    # hardcoded for merchant wallet 0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f
+    if to_checksum_address(address) == '0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f':
+        role = 'merchant'
     token = create_access_token({
         'address': recovered_address,
-        'role': 'customer'
+        'role': role
     })
 
     response_data = {
         "token": token,
         "user": {
             "address": address,
-            "role": "customer"
+            "role":role
         }
     }
     return response_data

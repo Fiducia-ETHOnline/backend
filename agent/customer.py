@@ -17,7 +17,7 @@ from decimal import Decimal
 from agent.protocol.a3acontext import *
 import json,os
 from blockchain.order_contract import OrderContractManager
-from storage.lighthouse import upload_order_desc,CID2Digest
+from storage.lighthouse import upload_order_desc,CID2Digest,CIDRebuild
 from agent.contract import get_erc20_abi,get_contract_abi
 order_contract = OrderContractManager(
     provider_url=os.environ['CONTRACT_URL'],
@@ -96,14 +96,13 @@ def real_upload_order(wallet,desc,price):
 
 def real_confirm_order(orderid,wallet):
     return order_contract.build_confirm_order(orderid,wallet)
-    
+
 
 def real_create_propose(hash,wallet):
     return order_contract.propose_order('0x'+hash,wallet)
+def real_answer_propose(orderid,price,seller_address):
+   return order_contract.propose_order_answer(orderid,'answer from merchant',price,seller_address=seller_address)
 
-async def real_answer_propose(orderid,price)->str:
-    resp =await try_send_to_merchant(A3AProposeCtx('',price,'',orderid,''))
-    return resp.content
 client = OpenAI(
     # By default, we are using the ASI:One LLM endpoint and model
     base_url='https://api.asi1.ai/v1',
@@ -177,21 +176,24 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
 
                     try:
                         digest = real_upload_order(wallet_address,desc,price)
-                        orderid,txhash = real_create_propose(digest,wallet_address)
-                        txhash = await real_answer_propose(orderid,price)
+                        orderid,txhash = real_create_propose(digest,wallet_address) # proposeOrder() #1 connect sc
+                        merchant_wallet = await try_send_to_merchant(A3AMerchantWalletQuery())
+                        merchant_wallet = merchant_wallet.content
+                        txhash = real_answer_propose(orderid,price,merchant_wallet)
                         transaction = real_confirm_order(orderid,wallet_address)
                     except Exception as e:
                         print(e)
-                        await ctx.send(sender,A3AErrorPacket('Fail to create_propose!'))
+                        await ctx.send(sender,A3AErrorPacket('Fail to create_propose! Possible reasons: Insufficient balance/allowance of A3AToken'))
                         return
                     await ctx.send(sender,A3AOrderResponse(
                         orderid=orderid,
                         price=price,
                         desc=desc,
+                        cid=CIDRebuild(digest),
                         unsigned_transaction=json.dumps(transaction)
                     ))
                     
-                    await ctx.send(sender,A3AResponse(type='order',content=json.dumps(transaction)))
+                    # await ctx.send(sender,A3AResponse(type='order',content=json.dumps(transaction)))
                     return
                  else:
                     message = arguments['message']

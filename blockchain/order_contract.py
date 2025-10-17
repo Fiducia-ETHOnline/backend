@@ -488,6 +488,11 @@ class OrderContractManager:
         user_address = to_checksum_address(user_address)
         order_ids = self.order_contract.functions.getUserOrderIds(user_address).call()
         return [str(order_id) for order_id in order_ids]
+    def get_merchant_order_ids(self, user_address: str) -> List[str]:
+        """Get all order IDs for a merchant"""
+        user_address = to_checksum_address(user_address)
+        order_ids = self.order_contract.functions.getOrderIDsByMerchant(user_address).call()
+        return [str(order_id) for order_id in order_ids]
     
     def get_user_orders_with_status(self, user_address: str) -> Tuple[List[str], List[OrderStatus]]:
         """Get all orders and their statuses for a user"""
@@ -590,8 +595,65 @@ class OrderContractManager:
             logger.error(f"Error approving pyUSD spending: {str(e)}")
             raise
     
+    def buy_a3a_token(self, pyusd_amount: float, user_address: Optional[str] = None) -> str:
+        """
+        Buy A3A tokens using pyUSD (user function)
+
+        Args:
+            pyusd_amount: Amount of pyUSD to spend
+            user_address: User address (uses user_account if not provided)
+
+        Returns:
+            Transaction hash
+        """
+        if not self.user_account and not user_address:
+            raise ValueError("User account or address required")
+
+        from_address = user_address or self.user_account.address
+        from_address = to_checksum_address(from_address)
+
+        # Convert pyUSD amount to wei
+        pyusd_amount_wei = eth_to_wei(pyusd_amount)
+
+        # ADDITIONAL_PRECISION is typically 1e18
+        additional_precision = 10**18
+        a3a_amount = (pyusd_amount_wei * additional_precision * 10) // (10**18)  # Adjust for precision
+
+        try:
+            # Check pyUSD balance
+            balance = self.get_pyusd_balance(from_address)
+            if balance < pyusd_amount:
+                raise InsufficientFundsException(f"Insufficient pyUSD balance. Required: {pyusd_amount}, Available: {balance}")
+
+            # Check and approve pyUSD spending if needed
+            allowance = self.get_pyusd_allowance(from_address, self.order_contract_address)
+            if allowance < pyusd_amount_wei:
+                approve_tx = self.approve_pyusd_spending(pyusd_amount_wei, from_address)
+                logger.info(f"Approved pyUSD spending: {approve_tx}")
+
+            # Build buyA3AToken transaction
+            transaction = self.order_contract.functions.buyA3AToken(
+                pyusd_amount_wei
+            ).build_transaction({
+                'from': from_address,
+                'gas': 500000,
+                'gasPrice': self.w3.to_wei('20', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(from_address),
+            })
+
+            if self.user_account:
+                signed_txn = self.w3.eth.account.sign_transaction(transaction, self.user_account.key)
+                tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+                return tx_hash.hex()
+            else:
+                raise ValueError("User private key required for transaction signing")
+
+        except Exception as e:
+            logger.error(f"Error buying A3A token for {pyusd_amount} pyUSD: {str(e)}")
+            raise
+
     # ========== CONTRACT INFO FUNCTIONS ==========
-    
+
     def get_agent_controller(self) -> str:
         """Get the agent controller address"""
         return self.order_contract.functions.getAgentController().call()

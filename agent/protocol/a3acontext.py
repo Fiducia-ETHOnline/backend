@@ -8,6 +8,7 @@ class A3ACustomerOrderResponse(Model):
     price:str
     desc:str
     transaction:str
+    cid:str
 
 class A3ACustomerProposeRequest(Model):
     desc:str
@@ -30,12 +31,14 @@ class A3AResponse(Model):
 
 def A3AWalletPacket(address:str):
     return {'role':'wallet','content':address}
-
+def A3AWalletResponse(address:str):
+    return A3AResponse(type='wallet',content=address)
 def A3AErrorPacket(info):
     return A3AResponse(type='error',content= info)
 def A3ATXHashPacket(hash):
     return A3AResponse(type='hash',content=hash)
-
+def A3AMerchantWalletQuery():
+    return A3AContext(messages=[A3AMessage(role='query_wallet',content='')])
 def A3AProposeCtx(desc:str,price:str,cid:str,offerId:str,wallet:str):
     return A3AContext(messages=[A3AMessage(role='answer_order',content= A3ACustomerProposeRequest(desc=desc,
                                                           price=price,
@@ -43,7 +46,7 @@ def A3AProposeCtx(desc:str,price:str,cid:str,offerId:str,wallet:str):
                                                           orderId=offerId,
                                                           wallet=wallet))]
     )
-def A3AOrderResponse(orderid:str,desc:str,price:str,unsigned_transaction:str):
-    return A3AResponse(type='order',content= A3ACustomerOrderResponse(orderId=orderid,price=price,desc=desc,transaction=unsigned_transaction))
+def A3AOrderResponse(orderid:str,desc:str,price:str,unsigned_transaction:str,cid:str):
+    return A3AResponse(type='order',content= A3ACustomerOrderResponse(orderId=orderid,price=price,desc=desc,transaction=unsigned_transaction,cid=cid))
 def create_a3a_protocol():
     return Protocol("A3A Chat Protocol",'1.0')

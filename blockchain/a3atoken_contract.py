@@ -1,11 +1,12 @@
 
 from web3 import Web3
-rpc_url = "http://127.0.0.1:8545"
+import os
+rpc_url =os.environ['CONTRACT_URL']
 w3 = Web3(Web3.HTTPProvider(rpc_url))
 
 
-token_address = Web3.to_checksum_address("0x5FbDB2315678afecb367f032d93F642f64180aa3")
-spender_address = Web3.to_checksum_address("0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512")
+token_address = Web3.to_checksum_address(os.environ['A3ATOKEN_ADDRESS'])
+spender_address = Web3.to_checksum_address(os.environ['AGENT_CONTRACT'])
 
 
 erc20_abi = [
