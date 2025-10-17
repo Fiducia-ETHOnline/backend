@@ -1,0 +1,86 @@
+{
+  "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "A3A",
+    "A3AToken",
+    "abi",
+    "acontext",
+    "Alchemy",
+    "anvil",
+    "asi1",
+    "ASI1",
+    "CID2Digest",
+    "CIDRebuild",
+    "dockerfile",
+    "dotenv",
+    "ecommerce",
+    "emtpy",
+    "emvsf",
+    "FastAPI",
+    "fetchai",
+    "fgvrwjr",
+    "fiducia",
+    "hiweihvhieivhwehihiweivbw",
+    "hyperon",
+    "Infura",
+    "jtuch",
+    "Lighthouse",
+    "lighthouseweb",
+    "lwxfyjkuzny",
+    "Metta",
+    "MeTTa",
+    "Mgmt",
+    "mpjtcqqq",
+    "multiformats",
+    "OrderContract",
+    "pydantic",
+    "pyproject",
+    "pyUSD",
+    "qvuadg",
+    "rikbv",
+    "rkkbv",
+    "Sepolia",
+    "Superintelligence",
+    "txhash",
+    "uAgent",
+    "uagents",
+    "uAgents",
+    "uvicorn",
+    "web3",
+    "wpfwlcqhsqt",
+    "xkecdk"
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/__pycache__/**",
+    "**/*.lock",
+    "**/*.abi",
+    "**/*.json",
+    "**/*.svg",
+    "**/*.png",
+    "**/*.jpg"
+  ],
+  "dictionaries": [
+    "python",
+    "softwareTerms"
+  ],
+  "overrides": [
+    {
+      "filename": [
+        "**/*.md"
+      ],
+      "words": [
+        "Agentverse",
+        "uAgents",
+        "ASI:One",
+        "pyUSD",
+        "Web3"
+      ]
+    }
+  ]
+}

@@ -43,3 +43,4 @@ Ensure the following variables are set (see `.env.example`):
 - Requires OrderContract deployed and accessible
 - Include merchant name in every response (see system prompt)
 
+**Merchant Agent Address**:'agent1qf9ua6p2gz6nx47emvsf5d9840h7wpfwlcqhsqt4zz0dun8tj43l23jtuch'

@@ -1,5 +1,6 @@
 from blockchain.order_service import OrderContractManager
-import asyncio, json
+import asyncio, json, os
+from dotenv import load_dotenv
 
 # ========== 🌐 Initialize with your contract ==========
 with open('./blockchain/OrderContract_ABI.json') as f:
@@ -7,18 +8,21 @@ with open('./blockchain/OrderContract_ABI.json') as f:
 with open('./blockchain/ERC20_ABI.json') as f:
     erc20_abi_dic = json.loads(f.read())
 
+# Load environment variables from .env
+load_dotenv()
+
 order_contract = OrderContractManager(
-    provider_url='http://127.0.0.1:8545',
-    order_contract_address='0x5FbDB2315678afecb367f032d93F642f64180aa3',
-    pyusd_token_address='0x0116686E2291dbd5e317F47faDBFb43B599786Ef',
+    provider_url=os.getenv('CONTRACT_URL', 'http://127.0.0.1:8545'),
+    order_contract_address=os.getenv('AGENT_CONTRACT', ''),
+    pyusd_token_address=os.getenv('PYUSD_ADDRESS', ''),
     order_contract_abi=abi_dic,
     erc20_abi=erc20_abi_dic,
-    agent_controller_private_key='0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba',
-    user_private_key='0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6'
+    agent_controller_private_key=os.getenv('AGENT_PRIVATE_KEY', ''),
+    user_private_key=os.getenv('TEST_USER_PRIVATE_KEY', '')
 )
 
-BUYER_ADDRESS = '0xa0Ee7A142d267C1f36714E4a8F75612F20a79720'
-SELLER_ADDRESS = '0x14dC79964da2C08b23698B3D3cc7Ca32193d9955'
+BUYER_ADDRESS = os.getenv('TEST_BUYER_ADDRESS', '0xa0Ee7A142d267C1f36714E4a8F75612F20a79720')
+SELLER_ADDRESS = os.getenv('TEST_SELLER_ADDRESS', '0x14dC79964da2C08b23698B3D3cc7Ca32193d9955')
 
 
 def main():

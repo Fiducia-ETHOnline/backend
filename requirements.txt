@@ -11,4 +11,5 @@ pydantic[dotenv]
 PyJWT
 lighthouseweb3
 multiformats
+python-dotenv
 

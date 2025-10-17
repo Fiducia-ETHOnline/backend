@@ -1,5 +1,9 @@
 from blockchain.order_contract import OrderContractManager
 import json,os
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 def get_contract_abi():
     with open('blockchain/OrderContract_ABI.json') as f:
         return json.loads(f.read())
