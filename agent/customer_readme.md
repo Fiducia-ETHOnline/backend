@@ -1,5 +1,7 @@
 # Customer Agent README
 
+**Customer Agent Address**: agent1qvuadg2lwxfyjkuzny0mj6v7v4xkecdk2at3fgvrwjr7mpjtcqqq2j0y8up
+
 ## Overview
 The Customer Agent helps end-users discover products, refine requirements, and create blockchain-backed orders using the OrderContract with pyUSD payments. It collaborates with the Merchant Agent to fetch offers and finalize orders.
 

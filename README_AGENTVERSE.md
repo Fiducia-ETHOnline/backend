@@ -346,4 +346,4 @@ decentralized-commerce blockchain smart-contracts pyusd-payments asi-agents orde
 
 For support or questions, interact with the agent directly through ASI1.ai or the Agentverse platform.
 
-**Agent Address**: agent1qvuadg2lwxfyjkuzny0mj6v7v4xkecdk2at3fgvrwjr7mpjtcqqq2j0y8up
+**Customer Agent Address**: agent1qvuadg2lwxfyjkuzny0mj6v7v4xkecdk2at3fgvrwjr7mpjtcqqq2j0y8up
