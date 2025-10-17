@@ -9,3 +9,6 @@ web3
 eth-account
 pydantic[dotenv]
 PyJWT
+lighthouseweb3
+multiformats
+
