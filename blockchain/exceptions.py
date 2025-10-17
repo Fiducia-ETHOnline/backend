@@ -19,6 +19,9 @@ class TransactionFailedException(BlockchainException):
 class InsufficientFundsException(BlockchainException):
     """Raised when account has insufficient funds"""
     pass
+class InsufficientAllowanceException(BlockchainException):
+    """Raised when account has insufficient funds"""
+    pass
 
 class InvalidAddressException(BlockchainException):
     """Raised when an invalid Ethereum address is provided"""

@@ -595,7 +595,7 @@ class OrderContractManager:
             logger.error(f"Error approving pyUSD spending: {str(e)}")
             raise
     
-    def buy_a3a_token(self, pyusd_amount: float, user_address: Optional[str] = None) -> str:
+    def build_buy_a3a_token(self, pyusd_amount: float, user_address: Optional[str] = None) -> str:
         """
         Buy A3A tokens using pyUSD (user function)
 
@@ -628,8 +628,7 @@ class OrderContractManager:
             # Check and approve pyUSD spending if needed
             allowance = self.get_pyusd_allowance(from_address, self.order_contract_address)
             if allowance < pyusd_amount_wei:
-                approve_tx = self.approve_pyusd_spending(pyusd_amount_wei, from_address)
-                logger.info(f"Approved pyUSD spending: {approve_tx}")
+                raise InsufficientFundsException(f'Insufficient pyUSD allowance.')
 
             # Build buyA3AToken transaction
             transaction = self.order_contract.functions.buyA3AToken(
@@ -641,12 +640,7 @@ class OrderContractManager:
                 'nonce': self.w3.eth.get_transaction_count(from_address),
             })
 
-            if self.user_account:
-                signed_txn = self.w3.eth.account.sign_transaction(transaction, self.user_account.key)
-                tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-                return tx_hash.hex()
-            else:
-                raise ValueError("User private key required for transaction signing")
+            return transaction
 
         except Exception as e:
             logger.error(f"Error buying A3A token for {pyusd_amount} pyUSD: {str(e)}")

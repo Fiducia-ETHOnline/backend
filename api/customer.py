@@ -13,6 +13,9 @@ custom_agent_address = 'agent1qvuadg2lwxfyjkuzny0mj6v7v4xkecdk2at3fgvrwjr7mpjtcq
 
 router = APIRouter(prefix="/api", tags=["customer"])
 
+class BuyA3ARequest(BaseModel):
+    pyusd:float
+
 class ChatMessageRequest(BaseModel):
     messages: List[Dict[str, Any]]
 
@@ -48,6 +51,23 @@ async def send_chat_message(
 
 
     return resp
+@router.post('/token/buya3a')
+async def buya3a_token(
+    request: BuyA3ARequest,
+    current_user: dict = Depends(verify_jwt_token)
+):
+    try:
+        transact =backend_ordercontract.build_buy_a3a_token(request.pyusd,current_user['address'])
+    except Exception as e:
+        return {
+            'status':str(e),
+            'transaction':''
+        }
+
+    return {
+        'status':'ok',
+        'transaction':json.dumps(transact)
+    }
 
 @router.post('/orders/{orderId}/confirm-payment')
 async def confirm_payment(
