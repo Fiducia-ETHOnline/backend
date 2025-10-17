@@ -53,13 +53,19 @@ You need:
 2. You should never respond an empty string, even if there is no best match, try to find the most similar one; if no similar one, return some text to indicate the situation and give some suggestion
 3. You should ALWAYS include the merchant's name: Test Pizza Agent in EVERY response to user
 Here's your product list:
+
+'''
+
+
+#for backup
+'''
 1. pizza with meat: 15 USD
 2. pizza with onion: 10 USD
 3. pizza with pineapple: 8 USD
 4. pizza with cheese: 12 USD
 5. Other custom pizza is also possible, you can give a reasonable price
-'''
 
+'''
 # all_goods_list =[
 #     {
 #         'desc':'''
@@ -138,8 +144,12 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
         await ctx.send(sender,A3AWalletResponse(MERCHANT_WALLET_ADDRESS))
         return
     wallet_address = ''
+    menu = get_menu_for_merchant(METTA_INSTANCE, "TestPizzaAgent") if METTA_INSTANCE else []
+    new_system_prompt = system_prompt
+    if menu:
+        new_system_prompt += "\n\nAvailable Menu (via MeTTa):\n" + "\n".join([f"- {i}: ${p}" for i, p in menu])
     msgs = [
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": new_system_prompt},
                 
             ]
     for item in msg.messages:
@@ -158,29 +168,10 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
         )
         print(r)
         tool_calls = r.choices[0].message.tool_calls
-        # ctx.logger.warning(r.choices[0].message)
         
-        # if tool_calls:
-        #     msgs.append(r.choices[0].message)
-        #     for tool in tool_calls:
-                 
-        #          function_name = tool.function.name
-        #          arguments = json.loads(tool.function.arguments)
-        #          if function_name == 'create_propose':
-        #              desc = arguments['desc']
-        #              price = arguments['price']
-        #              cid = real_upload_propose(desc,price,wallet_address)
-        #              cid_digest = CID2Digest(cid)
-        #              order_contract.propose_order(cid_digest,wallet_address)
-        #              ctx.send(sender,A3AProposePacket(desc,price,))
-        #              return
-        # else:
         response = str(r.choices[0].message.content)
         print(response)
-        # Optionally, enrich response with menu knowledge
-        menu = get_menu_for_merchant(METTA_INSTANCE, "TestPizzaAgent") if METTA_INSTANCE else []
-        if menu:
-            response += "\n\nAvailable Menu (via MeTTa):\n" + "\n".join([f"- {i}: ${p}" for i, p in menu])
+
         await ctx.send(sender, A3AResponse(type='chat', content=response))
         return
           
