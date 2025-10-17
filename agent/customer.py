@@ -22,6 +22,7 @@ from storage.lighthouse import upload_order_desc,CID2Digest,CIDRebuild
 from agent.contract import get_erc20_abi,get_contract_abi
 # Load environment variables from .env
 load_dotenv()
+from hyperon import MeTTa
 
 order_contract = OrderContractManager(
     provider_url=os.environ['CONTRACT_URL'],

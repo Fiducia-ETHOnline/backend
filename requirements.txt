@@ -12,4 +12,5 @@ PyJWT
 lighthouseweb3
 multiformats
 python-dotenv
+hyperon
 

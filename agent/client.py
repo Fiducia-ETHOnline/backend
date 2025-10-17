@@ -14,10 +14,16 @@ AI_AGENT_ADDRESS = os.getenv(
     "CUSTOMER_AGENT_ADDRESS",
     "agent1qvuadg2lwxfyjkuzny0mj6v7v4xkecdk2at3fgvrwjr7mpjtcqqq2j0y8up",
 )
+
+# Agent seed: unified single env var
+AGENT_SEED = os.getenv(
+    "AGENT_SEED",
+    "hiweihvhieivhwehihiweivbw;ibv;rikbv;erv;rkkbv",
+)
  
 agent = Agent(
     name="asi-agent",
-    seed="hiweihvhieivhwehihiweivbw;ibv;rikbv;erv;rkkbv",
+    seed=AGENT_SEED,
     port=8002,
     endpoint=["http://127.0.0.1:8002/submit"],
 )

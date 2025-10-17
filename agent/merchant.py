@@ -15,6 +15,11 @@ from uagents_core.contrib.protocols.chat import (
 from agent.protocol.a3acontext import *
 import json,os
 from dotenv import load_dotenv
+from hyperon import MeTTa
+from metta.utils import create_metta, add_menu_item, get_menu_for_merchant
+
+# Global MeTTa instance for merchant knowledge
+METTA_INSTANCE: MeTTa | None = create_metta()
 from blockchain.order_contract import OrderContractManager
 
 from agent.contract import get_erc20_abi,get_contract_abi
@@ -45,7 +50,7 @@ You need:
 1. If customer tell you their need, you should check your product list, and find the best match one.
    If no product is matched, just tell the customer no matched product or and suggest a similar product.
    When responding, you should send both the product description and product's price to the customer
-2. You should never respond an emtpy string, even there is no best match, try to find the most similar one, if no similar one, just return some text to indicate the situation and give some suggestion
+2. You should never respond an empty string, even if there is no best match, try to find the most similar one; if no similar one, return some text to indicate the situation and give some suggestion
 3. You should ALWAYS include the merchant's name: Test Pizza Agent in EVERY response to user
 Here's your product list:
 1. pizza with meat: 15 USD
@@ -118,6 +123,12 @@ A3AMerchantAgent = Agent(
 @A3AMerchantAgent.on_event("startup")
 async def agent_details(ctx: Context):
     ctx.logger.info(f"Search Agent Address is {A3AMerchantAgent.address}")
+    # Seed menu into MeTTa graph (idempotent)
+    if METTA_INSTANCE:
+        add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "meat_pizza", "15")
+        add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "onion_pizza", "10")
+        add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "pineapple_pizza", "8")
+        add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "cheese_pizza", "12")
 
 
 # On_query handler for news_url request
@@ -166,7 +177,11 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
         # else:
         response = str(r.choices[0].message.content)
         print(response)
-        await ctx.send(sender, A3AResponse(type='chat',content=response))
+        # Optionally, enrich response with menu knowledge
+        menu = get_menu_for_merchant(METTA_INSTANCE, "TestPizzaAgent") if METTA_INSTANCE else []
+        if menu:
+            response += "\n\nAvailable Menu (via MeTTa):\n" + "\n".join([f"- {i}: ${p}" for i, p in menu])
+        await ctx.send(sender, A3AResponse(type='chat', content=response))
         return
           
     except:
