@@ -33,9 +33,9 @@ headers = {'Authorization': f'Bearer {access_token}'}
 #     print("❌ Fail to do chat! The A3AToken balance is insufficient!")
 #     sys.exit(-1)
 # if allowance<20:
-#     # using ether.js in frontend maybe?
-#     # This include private key signature
-# approve_address(TEST_WALLET_PRIVATE_KEY,10000)
+    # using ether.js in frontend maybe?
+    # This include private key signature
+approve_address(TEST_WALLET_PRIVATE_KEY,10000)
 #============== =============================== =======
 
 
