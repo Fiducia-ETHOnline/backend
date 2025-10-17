@@ -16,9 +16,13 @@ from decimal import Decimal
 
 from agent.protocol.a3acontext import *
 import json,os
+from dotenv import load_dotenv
 from blockchain.order_contract import OrderContractManager
 from storage.lighthouse import upload_order_desc,CID2Digest,CIDRebuild
 from agent.contract import get_erc20_abi,get_contract_abi
+# Load environment variables from .env
+load_dotenv()
+
 order_contract = OrderContractManager(
     provider_url=os.environ['CONTRACT_URL'],
     order_contract_address=os.environ['AGENT_CONTRACT'],
@@ -30,7 +34,10 @@ order_contract = OrderContractManager(
 
 )
 
-MERCHANT_AGENT_ADDRESS = 'agent1qf9ua6p2gz6nx47emvsf5d9840h7wpfwlcqhsqt4zz0dun8tj43l23jtuch'
+MERCHANT_AGENT_ADDRESS = os.getenv(
+    'MERCHANT_AGENT_ADDRESS',
+    'agent1qf9ua6p2gz6nx47emvsf5d9840h7wpfwlcqhsqt4zz0dun8tj43l23jtuch'
+)
 
 order_contract.user_account
 system_prompt = '''
@@ -103,12 +110,14 @@ def real_create_propose(hash,wallet):
 def real_answer_propose(orderid,price,seller_address):
    return order_contract.propose_order_answer(orderid,'answer from merchant',price,seller_address=seller_address)
 
+_asi_api_key = os.getenv('API_ASI_KEY')
+if not _asi_api_key:
+    raise RuntimeError("Missing API_ASI_KEY in environment; set it in your .env file.")
+
 client = OpenAI(
     # By default, we are using the ASI:One LLM endpoint and model
     base_url='https://api.asi1.ai/v1',
- 
-    # You can get an ASI:One api key by creating an account at https://asi1.ai/dashboard/api-keys
-    api_key='sk_01514396b3c742b3bad785a5e869e87b0da3d0d123fc4849bd57f19bf0075b92',
+    api_key=_asi_api_key,
 )
  
 A3ACustomerAgent = Agent(

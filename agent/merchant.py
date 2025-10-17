@@ -14,9 +14,13 @@ from uagents_core.contrib.protocols.chat import (
 )
 from agent.protocol.a3acontext import *
 import json,os
+from dotenv import load_dotenv
 from blockchain.order_contract import OrderContractManager
 
 from agent.contract import get_erc20_abi,get_contract_abi
+# Load environment variables from .env
+load_dotenv()
+
 order_contract = OrderContractManager(
     provider_url=os.environ['CONTRACT_URL'],
     order_contract_address=os.environ['AGENT_CONTRACT'],
@@ -28,7 +32,11 @@ order_contract = OrderContractManager(
 
 a3a_protocol= create_a3a_protocol()
 
-MERCHANT_WALLET_ADDRESS ='0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f'
+# Merchant wallet (can be configured via env)
+MERCHANT_WALLET_ADDRESS = os.getenv(
+    'MERCHANT_WALLET_ADDRESS',
+    '0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f'
+)
 
 system_prompt='''
 You are an agent works as a merchant seller:
@@ -83,12 +91,14 @@ create_propose = {
 }
 
 
+_asi_api_key = os.getenv('API_ASI_KEY')
+if not _asi_api_key:
+    raise RuntimeError("Missing API_ASI_KEY in environment; set it in your .env file.")
+
 client = OpenAI(
     # By default, we are using the ASI:One LLM endpoint and model
     base_url='https://api.asi1.ai/v1',
- 
-    # You can get an ASI:One api key by creating an account at https://asi1.ai/dashboard/api-keys
-    api_key='sk_01514396b3c742b3bad785a5e869e87b0da3d0d123fc4849bd57f19bf0075b92',
+    api_key=_asi_api_key,
 )
   
 A3AMerchantAgent = Agent(

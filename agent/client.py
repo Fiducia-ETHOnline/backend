@@ -1,9 +1,19 @@
 from datetime import datetime
 from uuid import uuid4
+import os
+from dotenv import load_dotenv
 from uagents import Agent, Context, Protocol, Model
 from uagents_core.contrib.protocols.chat import AgentContent, ChatMessage, ChatAcknowledgement, TextContent
 from protocol.a3acontext import A3AContext
-AI_AGENT_ADDRESS = "agent1qvuadg2lwxfyjkuzny0mj6v7v4xkecdk2at3fgvrwjr7mpjtcqqq2j0y8up"
+
+# Load environment variables from .env
+load_dotenv()
+
+# Address of the target agent (default to Customer Agent)
+AI_AGENT_ADDRESS = os.getenv(
+    "CUSTOMER_AGENT_ADDRESS",
+    "agent1qvuadg2lwxfyjkuzny0mj6v7v4xkecdk2at3fgvrwjr7mpjtcqqq2j0y8up",
+)
  
 agent = Agent(
     name="asi-agent",
