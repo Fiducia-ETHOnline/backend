@@ -9,7 +9,9 @@ from .auth_dependencies import verify_jwt_token
 from eth_utils import to_checksum_address
 from api.blockchain import *
 from storage.lighthouse import *
-custom_agent_address = 'agent1qvuadg2lwxfyjkuzny0mj6v7v4xkecdk2at3fgvrwjr7mpjtcqqq2j0y8up'
+from dotenv import load_dotenv
+load_dotenv()
+custom_agent_address = os.getenv('CUSTOMER_AGENT_ADDRESS','agent1qvuadg2lwxfyjkuzny0mj6v7v4xkecdk2at3fgvrwjr7mpjtcqqq2j0y8up')
 
 router = APIRouter(prefix="/api", tags=["customer"])
 
