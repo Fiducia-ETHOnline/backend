@@ -97,6 +97,8 @@ consult_merchant = {
 
   }
 }
+
+a3acustomer_protocol = create_a3a_protocol()
 async def try_send_to_merchant(ctx:A3AContext)->A3AResponse:
     resp = await send_sync_message(MERCHANT_AGENT_ADDRESS,ctx,response_type=A3AResponse)
     return resp
@@ -133,40 +135,40 @@ client = OpenAI(
 # ------------------------------
 
 # Local MeTTa instance for querying merchant data.
-METTA_INSTANCE: MeTTa | None = create_metta()
-if METTA_INSTANCE is not None:
-    # Initialize base knowledge (optional/neutral)
-    initialize_knowledge_graph(METTA_INSTANCE)
-    # Minimal merchant-facing seed for demo parity with merchant agent
-    seed_merchant_example(METTA_INSTANCE, "TestPizzaAgent")
-    add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "meat_pizza", "15")
-    add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "onion_pizza", "10")
-    add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "pineapple_pizza", "8")
-    add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "cheese_pizza", "12")
+# METTA_INSTANCE: MeTTa | None = create_metta()
+# if METTA_INSTANCE is not None:
+#     # Initialize base knowledge (optional/neutral)
+#     initialize_knowledge_graph(METTA_INSTANCE)
+#     # Minimal merchant-facing seed for demo parity with merchant agent
+#     seed_merchant_example(METTA_INSTANCE, "TestPizzaAgent")
+#     add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "meat_pizza", "15")
+#     add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "onion_pizza", "10")
+#     add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "pineapple_pizza", "8")
+#     add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "cheese_pizza", "12")
 
 
-def _lookup_price_from_metta(desc: str, merchant: str = "TestPizzaAgent") -> tuple[str | None, str | None]:
-    """Find a suitable (item, price) from MeTTa given a user-provided description.
-    Strategy: match menu item names that appear in the description (underscore/space-insensitive),
-    else fall back to the cheapest item.
-    """
-    if METTA_INSTANCE is None:
-        return None, None
-    menu = get_menu_for_merchant(METTA_INSTANCE, merchant) or []
-    norm_desc = desc.lower().replace("_", " ")
-    def norm_item(n: str) -> str:
-        return n.replace("_", " ").lower()
-    for item, price in menu:
-        if norm_item(item) in norm_desc:
-            return item, price
-    # Fallback to cheapest
-    if menu:
-        cheapest = min(
-            menu,
-            key=lambda x: float(x[1]) if (x and x[1] is not None) else float("inf"),
-        )
-        return cheapest
-    return None, None
+# def _lookup_price_from_metta(desc: str, merchant: str = "TestPizzaAgent") -> tuple[str | None, str | None]:
+#     """Find a suitable (item, price) from MeTTa given a user-provided description.
+#     Strategy: match menu item names that appear in the description (underscore/space-insensitive),
+#     else fall back to the cheapest item.
+#     """
+#     if METTA_INSTANCE is None:
+#         return None, None
+#     menu = get_menu_for_merchant(METTA_INSTANCE, merchant) or []
+#     norm_desc = desc.lower().replace("_", " ")
+#     def norm_item(n: str) -> str:
+#         return n.replace("_", " ").lower()
+#     for item, price in menu:
+#         if norm_item(item) in norm_desc:
+#             return item, price
+#     # Fallback to cheapest
+#     if menu:
+#         cheapest = min(
+#             menu,
+#             key=lambda x: float(x[1]) if (x and x[1] is not None) else float("inf"),
+#         )
+#         return cheapest
+#     return None, None
  
 A3ACustomerAgent = Agent(
     name="A2A Customer Agent",
@@ -174,7 +176,8 @@ A3ACustomerAgent = Agent(
     seed="fiducia_seed",
     endpoint=["http://127.0.0.1:8000/submit"],
     mailbox=True,
-    readme_path='agent/customer_readme.md'
+    readme_path='agent/customer_readme',
+    publish_agent_details=True
 
 )
 # Registering agent on Almanac and funding it.
@@ -188,7 +191,7 @@ async def agent_details(ctx: Context):
 
 
 # On_query handler for news_url request
-@A3ACustomerAgent.on_query(model=A3AContext, replies={A3AResponse})
+@a3acustomer_protocol.on_query(model=A3AContext, replies={A3AResponse})
 async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
     ctx.logger.info(msg)
     wallet_address=''
@@ -231,14 +234,14 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                     desc = arguments['desc']
                     # Try to validate/normalize price; if invalid/missing, consult MeTTa
                     item_hint = None
-                    try:
-                        price = str(Decimal(arguments['price']).quantize(Decimal('0.01')))
-                    except Exception:
-                        item_hint, metta_price = _lookup_price_from_metta(desc)
-                        if metta_price is not None:
-                            price = str(Decimal(metta_price).quantize(Decimal('0.01')))
-                        else:
-                            price = str(Decimal('0').quantize(Decimal('0.01')))
+                    # try:
+                    price = str(Decimal(arguments['price']).quantize(Decimal('0.01')))
+                    # except Exception:
+                    #     item_hint, metta_price = _lookup_price_from_metta(desc)
+                    #     if metta_price is not None:
+                    #         price = str(Decimal(metta_price).quantize(Decimal('0.01')))
+                    #     else:
+                    #         price = str(Decimal('0').quantize(Decimal('0.01')))
 
                     try:
                         digest = real_upload_order(wallet_address,desc,price)
@@ -300,3 +303,5 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
     #     ctx.logger.error(error_message)
     #     # Ensure the error message is sent as a string
     #     await ctx.send(sender, ErrorResponse(error=str(error_message)))
+
+A3ACustomerAgent.include(a3acustomer_protocol,publish_manifest=True)

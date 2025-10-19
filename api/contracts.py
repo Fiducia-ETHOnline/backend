@@ -31,4 +31,4 @@ async def send_chat_message(
 async def send_chat_message(
     current_user: dict = Depends(verify_jwt_token)
 ):
-    return os.environ['CONTRACT_URL']
+    return os.environ['AGENT_CONTRACT']

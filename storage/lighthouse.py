@@ -3,7 +3,7 @@ from lighthouseweb3 import Lighthouse
 import base64
 from multiformats import *
 # Replace "YOUR_API_TOKEN" with your actual Lighthouse API token
-lh = Lighthouse(token="fe3ea12e.a26d106bd2e74aeaaf314d522d331385")
+lh = Lighthouse(token="5663617f.545de487ac114b0eab097bdc63113ce6")
 
 def upload_order_desc(info,filename):
     resp =lh.uploadBlob(io.BytesIO(json.dumps(info).encode('utf-8')),filename)

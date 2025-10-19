@@ -118,7 +118,8 @@ A3AMerchantAgent = Agent(
     seed="fiducia_seed_merchant",
     endpoint=["http://127.0.0.1:8001/submit"],
     mailbox=True,
-    readme_path='agent/merchant_readme.md'
+    readme_path='agent/merchant_readme',
+    publish_agent_details=True
 )
 
 # Registering agent on Almanac and funding it.
