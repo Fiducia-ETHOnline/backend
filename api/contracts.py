@@ -21,7 +21,7 @@ async def send_pyusd_addr(
 ):
     return os.environ['PYUSD_ADDRESS']
 
-@router.get('/a3tatoken')
+@router.get('/a3atoken')
 async def send_a3atoken_addr(
     # current_user: dict = Depends(verify_jwt_token)
 ):
