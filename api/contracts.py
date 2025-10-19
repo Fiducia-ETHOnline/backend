@@ -17,18 +17,19 @@ router = APIRouter(prefix="/api/contract", tags=["contract"])
 
 @router.post('/pyusd')
 async def send_chat_message(
-    current_user: dict = Depends(verify_jwt_token)
+    # current_user: dict = Depends(verify_jwt_token)
 ):
     return os.environ['PYUSD_ADDRESS']
 
 @router.post('/atatoken')
 async def send_chat_message(
-    current_user: dict = Depends(verify_jwt_token)
+    # current_user: dict = Depends(verify_jwt_token)
 ):
-    return os.environ['A3ATOKEN_ADDRESS']
+    return backend_ordercontract.get_a3a_address()
+    # return os.environ['A3ATOKEN_ADDRESS']
 
 @router.post('/order')
 async def send_chat_message(
-    current_user: dict = Depends(verify_jwt_token)
+    # current_user: dict = Depends(verify_jwt_token)
 ):
     return os.environ['AGENT_CONTRACT']

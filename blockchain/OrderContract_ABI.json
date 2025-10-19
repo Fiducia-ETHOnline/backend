@@ -76,6 +76,19 @@
   },
   {
     "type": "function",
+    "name": "getA3ATokenAddress",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getAgentFee",
     "inputs": [],
     "outputs": [

@@ -651,6 +651,9 @@ class OrderContractManager:
     def get_agent_controller(self) -> str:
         """Get the agent controller address"""
         return self.order_contract.functions.getAgentController().call()
+    def get_a3a_address(self) -> str:
+        """Get the a3atoken address"""
+        return self.order_contract.functions.getA3ATokenAddress().call()
     
     def get_agent_fee(self) -> float:
         """Get the agent fee in pyUSD"""
