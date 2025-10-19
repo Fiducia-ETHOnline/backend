@@ -15,21 +15,27 @@ router = APIRouter(prefix="/api/contract", tags=["contract"])
 
 # token_contract = A3ATokenContract()
 
-@router.post('/pyusd')
-async def send_chat_message(
+@router.get('/pyusd')
+async def send_pyusd_addr(
     # current_user: dict = Depends(verify_jwt_token)
 ):
     return os.environ['PYUSD_ADDRESS']
 
-@router.post('/atatoken')
-async def send_chat_message(
+@router.get('/a3tatoken')
+async def send_a3atoken_addr(
     # current_user: dict = Depends(verify_jwt_token)
 ):
     return backend_ordercontract.get_a3a_address()
     # return os.environ['A3ATOKEN_ADDRESS']
 
-@router.post('/order')
-async def send_chat_message(
+@router.get('/order')
+async def send_order_contract_addr(
     # current_user: dict = Depends(verify_jwt_token)
 ):
     return os.environ['AGENT_CONTRACT']
+
+@router.get('/rpc')
+async def send_rpc_addr(
+    # current_user: dict = Depends(verify_jwt_token)
+):
+    return os.environ['CONTRACT_URL']
