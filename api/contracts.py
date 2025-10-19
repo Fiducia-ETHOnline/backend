@@ -7,7 +7,7 @@ from agent.protocol.a3acontext import A3AContext,A3AResponse
 import json
 from .auth_dependencies import verify_jwt_token
 # from eth_utils import to_checksum_address
-from blockchain.a3atoken_contract import A3ATokenContract
+# from blockchain.a3atoken_contract import A3ATokenContract
 from api.blockchain import *
 from web3 import Web3
 
