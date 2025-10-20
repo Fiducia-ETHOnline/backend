@@ -423,7 +423,7 @@ class OrderContractManager:
             raise ValueError("Agent controller account required")
         
         answer_hash = self.create_answer_hash(answer)
-        price_wei = eth_to_wei(price_pyusd)
+        price_wei = 10**6*(price_pyusd)
         controller_onchain = self.order_contract.functions.getAgentController().call()
 
 
@@ -558,7 +558,7 @@ class OrderContractManager:
         """Get pyUSD balance for an address"""
         address = to_checksum_address(address)
         balance_wei = self.pyusd_contract.functions.balanceOf(address).call()
-        return wei_to_eth(balance_wei)
+        return (balance_wei)/(10**6)
     
     def get_pyusd_allowance(self, owner: str, spender: str) -> int:
         """Get pyUSD allowance"""
@@ -613,7 +613,7 @@ class OrderContractManager:
         from_address = to_checksum_address(from_address)
 
         # Convert pyUSD amount to wei
-        pyusd_amount_wei = eth_to_wei(pyusd_amount)
+        pyusd_amount_wei = 10**6*(pyusd_amount)
 
         # ADDITIONAL_PRECISION is typically 1e18
         additional_precision = 10**6
@@ -632,7 +632,7 @@ class OrderContractManager:
 
             # Build buyA3AToken transaction
             transaction = self.order_contract.functions.buyA3AToken(
-                int(pyusd_amount*1**6)
+                int(pyusd_amount*10**6)
             ).build_transaction({
                 'from': from_address,
                 'gas': 500000,
