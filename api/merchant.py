@@ -3,10 +3,25 @@ from pydantic import BaseModel
 from .auth_dependencies import verify_jwt_token
 from api.blockchain import *
 from storage.lighthouse import *
+from typing import List, Dict, Any
+from uagents.query import send_sync_message
+from agent.protocol.a3acontext import A3AContext, A3AResponse, A3AMessage
+from eth_utils import to_checksum_address
+import os
+from dotenv import load_dotenv
+load_dotenv()
 router = APIRouter(prefix="/api", tags=["merchant"])
 
 class UpdateStatusRequest(BaseModel):
     status: str
+
+class ChatMessageRequest(BaseModel):
+    messages: List[Dict[str, Any]]
+
+merchant_agent_address = os.getenv(
+    'MERCHANT_AGENT_ADDRESS',
+    'agent1qf9ua6p2gz6nx47emvsf5d9840h7wpfwlcqhsqt4zz0dun8tj43l23jtuch'
+)
 
 @router.get('/tasks')
 async def get_assigned_tasks(current_user: dict = Depends(verify_jwt_token)):
@@ -54,3 +69,31 @@ async def update_task_status(
         "message": "Status updated successfully."
     }
     return response_data
+
+@router.post('/merchant/chat/messages')
+async def send_merchant_chat_message(
+    request: ChatMessageRequest,
+    current_user: dict = Depends(verify_jwt_token)
+):
+    """Forward chat to Merchant Agent. Supports admin updates by allowing role='agent'."""
+    msgs = request.messages
+    if not msgs:
+        raise HTTPException(status_code=400, detail="Messages are required")
+
+    wallet_msg = A3AMessage(
+        role='wallet',
+        content=to_checksum_address(current_user['address'])
+    )
+
+    final_msg: List[A3AMessage] = [wallet_msg]
+    for item in msgs:
+        role = item.get('role')
+        content = item.get('content')
+        if role in ('user', 'assistant', 'agent') and isinstance(content, str):
+            # Only allow 'agent' role messages from authenticated merchants
+            if role == 'agent' and current_user.get('role') != 'merchant':
+                raise HTTPException(status_code=403, detail="Admin updates require merchant role")
+            final_msg.append(A3AMessage(role=role, content=content))
+
+    resp = await send_sync_message(merchant_agent_address, A3AContext(messages=final_msg), response_type=A3AResponse)
+    return resp
