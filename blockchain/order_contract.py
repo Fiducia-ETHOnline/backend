@@ -616,7 +616,7 @@ class OrderContractManager:
         pyusd_amount_wei = eth_to_wei(pyusd_amount)
 
         # ADDITIONAL_PRECISION is typically 1e18
-        additional_precision = 10**18
+        additional_precision = 10**6
         a3a_amount = (pyusd_amount_wei * additional_precision * 10) // (10**18)  # Adjust for precision
 
         try:
@@ -632,7 +632,7 @@ class OrderContractManager:
 
             # Build buyA3AToken transaction
             transaction = self.order_contract.functions.buyA3AToken(
-                pyusd_amount_wei
+                int(pyusd_amount*1**6)
             ).build_transaction({
                 'from': from_address,
                 'gas': 500000,
