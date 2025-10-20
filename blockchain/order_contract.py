@@ -522,8 +522,8 @@ class OrderContractManager:
             seller=offer[1],
             prompt_hash=offer[2].hex(),
             answer_hash=offer[3].hex(),
-            price=wei_to_eth(offer[4]),
-            paid=wei_to_eth(offer[5]),
+            price=(offer[4]/(10**6)),
+            paid=(offer[5]/(10**6)),
             timestamp=datetime.fromtimestamp(offer[6]),
             status=OrderStatus(offer[7]),
             status_name=OrderStatus(offer[7]).name
