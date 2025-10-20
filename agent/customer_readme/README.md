@@ -9,6 +9,7 @@ The Customer Agent helps end-users discover products, refine requirements, and c
 - Order proposal creation on-chain (OrderContract)
 - Payment confirmation workflow using pyUSD
 - Status updates and notifications
+- Price fallback from merchant MeTTa data when the model omits/returns invalid price
 
 ## Protocols
 - ChatProtocol (uAgents chat) for natural-language interaction
@@ -27,6 +28,9 @@ Ensure the following variables are set (see `.env.example`):
 3. Proposes an order using `create_propose(desc, price)`
 4. Confirms payment with `confirm_order(order_id)`
 
+### Wallet lookup
+When building a payment, the Customer Agent queries the Merchant Agent’s wallet via the A3A protocol. The Merchant Agent will return the MeTTa-stored wallet if set by admin command, else it falls back to `MERCHANT_WALLET_ADDRESS` from environment.
+
 ## Run locally
 1. Install requirements: `pip install -r requirements.txt`
 2. Start backend: `python app.py`
@@ -44,5 +48,6 @@ Ensure the following variables are set (see `.env.example`):
 ## Notes
 - Requires OrderContract deployed and accessible
 - Uses Lighthouse for order description storage
+- Integrates MeTTa-based merchant knowledge (menu, prices) for better end-to-end flows
 
 **Customer Agent Address**: agent1qvuadg2lwxfyjkuzny0mj6v7v4xkecdk2at3fgvrwjr7mpjtcqqq2j0y8up

@@ -16,7 +16,19 @@ from agent.protocol.a3acontext import *
 import json,os
 from dotenv import load_dotenv
 from hyperon import MeTTa
-from metta.utils import create_metta, add_menu_item, get_menu_for_merchant
+from metta.utils import (
+    create_metta,
+    add_menu_item,
+    get_menu_for_merchant,
+    update_item_price,
+    remove_menu_item,
+    set_merchant_description,
+    set_open_hours,
+    set_location,
+    set_item_description,
+    set_merchant_wallet,
+    get_merchant_wallet,
+)
 
 # Global MeTTa instance for merchant knowledge
 METTA_INSTANCE: MeTTa | None = create_metta()
@@ -141,8 +153,11 @@ async def agent_details(ctx: Context):
 # On_query handler for news_url request
 @a3a_protocol.on_query(model=A3AContext, replies={A3AResponse})
 async def query_handler(ctx: Context, sender: str, msg: A3AContext):
+    # Special case: return configured or MeTTa-stored wallet
     if msg.messages[-1]['role'] == 'query_wallet':
-        await ctx.send(sender,A3AWalletResponse(MERCHANT_WALLET_ADDRESS))
+        wallet = get_merchant_wallet(METTA_INSTANCE, "TestPizzaAgent") if METTA_INSTANCE else None
+        wallet = wallet or MERCHANT_WALLET_ADDRESS
+        await ctx.send(sender, A3AWalletResponse(wallet))
         return
     wallet_address = ''
     menu = get_menu_for_merchant(METTA_INSTANCE, "TestPizzaAgent") if METTA_INSTANCE else []
@@ -154,8 +169,47 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
                 
             ]
     for item in msg.messages:
-        if item['role'] == 'user' or item['role'] == 'agent': 
+        role = item.get('role')
+        if role in ('user', 'agent'):
             msgs.append(item)
+        # Handle dynamic merchant admin updates via chat messages with 'agent' role conventions
+        # Expected formats (simple, human-typed or tool-generated):
+        #  - set_wallet:0xABC...
+        #  - add_item:cheese_pizza:12
+        #  - update_price:cheese_pizza:13
+        #  - remove_item:cheese_pizza
+        #  - set_desc:Best NY-style thin crust pizza.
+        #  - set_hours:Mon–Fri 10–22, Sat–Sun 9–24
+        #  - set_location:123 Main St, Anytown
+        #  - set_item_desc:cheese_pizza:Creamy mozzarella and rich tomato sauce
+        if role == 'agent' and isinstance(item.get('content'), str):
+            content = item['content'].strip()
+            try:
+                if content.startswith('set_wallet:') and METTA_INSTANCE:
+                    set_merchant_wallet(METTA_INSTANCE, "TestPizzaAgent", content.split(':',1)[1].strip())
+                elif content.startswith('add_item:') and METTA_INSTANCE:
+                    _, rest = content.split(':',1)
+                    name, price = [s.strip() for s in rest.split(':',1)]
+                    add_menu_item(METTA_INSTANCE, "TestPizzaAgent", name, price)
+                elif content.startswith('update_price:') and METTA_INSTANCE:
+                    _, rest = content.split(':',1)
+                    name, price = [s.strip() for s in rest.split(':',1)]
+                    update_item_price(METTA_INSTANCE, name, price)
+                elif content.startswith('remove_item:') and METTA_INSTANCE:
+                    name = content.split(':',1)[1].strip()
+                    remove_menu_item(METTA_INSTANCE, "TestPizzaAgent", name)
+                elif content.startswith('set_desc:') and METTA_INSTANCE:
+                    set_merchant_description(METTA_INSTANCE, "TestPizzaAgent", content.split(':',1)[1].strip())
+                elif content.startswith('set_hours:') and METTA_INSTANCE:
+                    set_open_hours(METTA_INSTANCE, "TestPizzaAgent", content.split(':',1)[1].strip())
+                elif content.startswith('set_location:') and METTA_INSTANCE:
+                    set_location(METTA_INSTANCE, "TestPizzaAgent", content.split(':',1)[1].strip())
+                elif content.startswith('set_item_desc:') and METTA_INSTANCE:
+                    _, rest = content.split(':',1)
+                    name, desc = [s.strip() for s in rest.split(':',1)]
+                    set_item_description(METTA_INSTANCE, name, desc)
+            except Exception as e:
+                ctx.logger.warning(f"Failed to parse admin command '{content}': {e}")
 
             
     print(msgs)

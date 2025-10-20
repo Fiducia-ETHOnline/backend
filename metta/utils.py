@@ -44,7 +44,7 @@ def get_menu_for_merchant(metta: MeTTa, merchant_name: str):
             return
         price_res = metta.run(f"!(match &self (price {i_sym} $p) $p)")
         # Use the latest price if multiple price entries exist
-        price = price_res[-1][0].get_object().value if price_res and price_res[-1] else None
+        price = _latest_value_from_match(price_res)
         results.append((i_sym, price))
 
     for r in pairs or []:
@@ -106,6 +106,16 @@ def list_categories(metta: MeTTa, merchant_name: str):
     res = metta.run(f"!(match &self (merchant-category {merchant_name} $c) $c)")
     return [str(r[0]) for r in (res or []) if r]
 
+# Merchant wallet
+
+def set_merchant_wallet(metta: MeTTa, merchant_name: str, wallet_address: str):
+    """Store or update merchant payout wallet address."""
+    metta.space().add_atom(E(S("merchant-wallet"), S(merchant_name), ValueAtom(wallet_address)))
+
+def get_merchant_wallet(metta: MeTTa, merchant_name: str):
+    res = metta.run(f"!(match &self (merchant-wallet {merchant_name} $w) $w)")
+    return res[-1][0].get_object().value if res and res[-1] else None
+
 # Item details
 
 def set_item_description(metta: MeTTa, item_name: str, description: str):
@@ -121,7 +131,30 @@ def update_item_price(metta: MeTTa, item_name: str, new_price: str):
 
 def get_item_price(metta: MeTTa, item_name: str):
     res = metta.run(f"!(match &self (price {item_name} $p) $p)")
-    return res[-1][0].get_object().value if res and res[-1] else None
+    # Prefer the latest entry regardless of row/value shape
+    return _latest_value_from_match(res)
+
+def _latest_value_from_match(res):
+    """Extract the latest scalar value from a MeTTa run() match result.
+    Handles shapes like: [["10", "14"]] or [[ValueAtom(10)], [ValueAtom(14)]] or [[10]]
+    Returns a string value when possible.
+    """
+    if not res:
+        return None
+    row = res[-1]
+    # If the row is a list with multiple values, take the last value
+    if isinstance(row, list) and row:
+        val = row[-1]
+    else:
+        val = row
+    # Unwrap possible nested single-element lists
+    if isinstance(val, list) and val:
+        val = val[-1]
+    # Try to access atom object value if present
+    try:
+        return val.get_object().value  # type: ignore[attr-defined]
+    except Exception:
+        return str(val)
 
 def remove_menu_item(metta: MeTTa, merchant_name: str, item_name: str):
     """Soft-remove a menu item by writing a tombstone relation (removed-menu merchant item)."""
