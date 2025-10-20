@@ -425,7 +425,7 @@ class OrderContractManager:
             raise ValueError("Agent controller account required")
         
         answer_hash = self.create_answer_hash(answer)
-        price_wei = 10**6*(price_pyusd)
+        price_wei = int(10**6*(price_pyusd))
         controller_onchain = self.order_contract.functions.getAgentController().call()
 
 
