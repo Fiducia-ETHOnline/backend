@@ -116,7 +116,7 @@ def real_confirm_order(orderid,wallet):
 
 
 def real_create_propose(hash,wallet):
-    return order_contract.propose_order('0x'+hash,wallet)
+    return order_contract.propose_order('0x'+hash)
 def real_answer_propose(orderid,price,seller_address):
    return order_contract.propose_order_answer(orderid,'answer from merchant',price,seller_address=seller_address)
 

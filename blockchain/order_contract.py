@@ -110,6 +110,8 @@ class OrderContractManager:
         
         if agent_controller_private_key:
             self.agent_account = Account.from_key(agent_controller_private_key)
+            print('Agent controller account:')
+            print(self.agent_account)
             
         if user_private_key:
             self.user_account = Account.from_key(user_private_key)
@@ -218,7 +220,7 @@ class OrderContractManager:
         #     user_address = to_checksum_address(user_address)
         # prompt_hash = self.create_prompt_hash(prompt)
         from_address =  self.agent_account.address
-        # print(f'from_address is {from_address}')
+        print(f'from_address is {from_address}')
         try:
             # Build transaction
             transaction = self.order_contract.functions.proposeOrder(
