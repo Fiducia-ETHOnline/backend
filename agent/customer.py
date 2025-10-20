@@ -248,7 +248,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                         orderid,txhash = real_create_propose(digest,wallet_address) # proposeOrder() #1 connect sc
                         merchant_wallet = await try_send_to_merchant(A3AMerchantWalletQuery())
                         merchant_wallet = merchant_wallet.content
-                        txhash = real_answer_propose(orderid,price,merchant_wallet)
+                        txhash = real_answer_propose(orderid,float(price),merchant_wallet)
                         transaction = real_confirm_order(orderid,wallet_address)
                     except Exception as e:
                         print(e)
