@@ -10,8 +10,8 @@ load_dotenv()
 ctx = []
 admin_mode = False  # when True, send mutations as role='agent'
 auto_sign = os.getenv('CHAT_AUTOSIGN', 'true').lower() == 'true'
-TEST_WALLET = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
-TEST_WALLET_PRIVATE_KEY = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'
+TEST_WALLET = '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc'
+TEST_WALLET_PRIVATE_KEY = '0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba'
 
 #============== This should be done by frontend =======
 auth_res= auth_login(TEST_WALLET_PRIVATE_KEY)

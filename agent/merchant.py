@@ -168,11 +168,17 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
                     merchant_label = content.split(':', 1)[1].strip() or merchant_label
     except Exception:
         pass
-    # Special case: return configured or MeTTa-stored wallet (after merchant_label resolved)
-    if msg.messages[-1]['role'] == 'query_wallet':
+    # Special cases: queries that bypass LLM
+    last_role = msg.messages[-1]['role']
+    if last_role == 'query_wallet':
         wallet = get_merchant_wallet(METTA_INSTANCE, merchant_label) if METTA_INSTANCE else None
         wallet = wallet or MERCHANT_WALLET_ADDRESS
         await ctx.send(sender, A3AWalletResponse(wallet))
+        return
+    if last_role == 'query_menu':
+        menu = get_menu_for_merchant(METTA_INSTANCE, merchant_label) if METTA_INSTANCE else []
+        menu_lines = "\n".join([f"- {i}: ${p}" for i, p in (menu or [])]) if menu else "(no items yet)"
+        await ctx.send(sender, A3AMenuResponse(menu_lines))
         return
     wallet_address = ''
     # Track whether this request performed an admin action (not just a merchant_id hint)

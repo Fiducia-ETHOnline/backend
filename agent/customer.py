@@ -131,6 +131,19 @@ client = OpenAI(
     api_key=_asi_api_key,
 )
  
+# Helper to safely extract content from merchant agent replies
+def _safe_content(resp) -> str:
+    """Return a string content from various response types.
+    Handles objects without .content (e.g., MsgStatus) by falling back to str().
+    """
+    try:
+        c = getattr(resp, 'content', None)
+        if c is None:
+            return str(resp)
+        return str(c)
+    except Exception:
+        return str(resp)
+
 # ------------------------------
 # MeTTa integration (customer-side)
 # ------------------------------
@@ -200,6 +213,13 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                 {"role": "system", "content": system_prompt},
                 
             ]
+    # Always fetch the merchant's current menu from merchant agent to ground the model
+    try:
+        menu_resp = await try_send_to_merchant(A3AMerchantMenuQuery())
+        menu_text = _safe_content(menu_resp)
+    except Exception:
+        menu_text = None
+
     for item in msg.messages:
         if item['role'] == 'wallet':
             wallet_address = item['content'].lower().strip()
@@ -208,7 +228,9 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
     if wallet_address == '':
         await ctx.send(sender,A3AErrorPacket('Cannot find wallet address in this context!'))
         return
-    # msgs.extend(msg.messages)
+    # Inject the merchant menu into the system prompt so the model always sees the live menu
+    if menu_text:
+        msgs.append({"role": "system", "content": f"Merchant menu (live):\n{menu_text}"})
     
     # msgs.extend(msg.messages)
     try:
@@ -250,7 +272,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                         orderid, txhash = real_create_propose(digest, wallet_address)
                         # Get merchant payout wallet
                         mw_resp = await try_send_to_merchant(A3AMerchantWalletQuery())
-                        merchant_wallet = str(mw_resp.content).strip()
+                        merchant_wallet = _safe_content(mw_resp).strip()
                         # Validate merchant wallet; fallback to env if invalid
                         if not is_valid_ethereum_address(merchant_wallet):
                             fallback_wallet = os.getenv('MERCHANT_WALLET_ADDRESS', '')
@@ -287,7 +309,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                     # I suggest this object's price as 15USD
                     # '''
                     # ctx.logger.info(mock_msg)
-                    msgs.append({"role":'tool','tool_call_id':tool.id,'content':resp.content})
+                    msgs.append({"role": 'tool', 'tool_call_id': tool.id, 'content': _safe_content(resp)})
         else:
           response = str(r.choices[0].message.content)
           await ctx.send(sender, A3AResponse(type='chat',content=response))

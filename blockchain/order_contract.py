@@ -241,8 +241,10 @@ class OrderContractManager:
             # Dry-run to catch reverts early and obtain expected offerId
             expected_offer_id = None
             try:
+                # Ensure bytes32 for promptHash
+                prompt_hash_bytes = Web3.to_bytes(hexstr=prompt_hash) if isinstance(prompt_hash, str) else prompt_hash
                 expected_offer_id = self.order_contract.functions.proposeOrder(
-                    prompt_hash,
+                    prompt_hash_bytes,
                     to_checksum_address(user_wallet_address)
                 ).call({
                     'from': from_address
@@ -264,7 +266,7 @@ class OrderContractManager:
 
             # Build transaction
             transaction = self.order_contract.functions.proposeOrder(
-                prompt_hash,
+                prompt_hash_bytes,
                 to_checksum_address(user_wallet_address)
             ).build_transaction({
                 'from': from_address,
@@ -454,7 +456,7 @@ class OrderContractManager:
     
     # ========== AGENT FUNCTIONS ==========
     
-    def propose_order_answer(self, order_id: str, answer: str, price_pyusd: float,seller_address:str) -> str:
+    def propose_order_answer(self, order_id: str, answer: str, price_pyusd: float, seller_address: str) -> str:
         """
         Propose an answer and price for an order (agent function)
         
@@ -468,15 +470,16 @@ class OrderContractManager:
         """
         if not self.agent_account:
             raise ValueError("Agent controller account required")
-        
+
         answer_hash = self.create_answer_hash(answer)
         price_wei = eth_to_wei(price_pyusd)
         controller_onchain = self.order_contract.functions.getAgentController().call()
 
-
         try:
+            # Ensure bytes32 for answerHash
+            answer_hash_bytes = Web3.to_bytes(hexstr=answer_hash) if isinstance(answer_hash, str) else answer_hash
             txn = self.order_contract.functions.proposeOrderAnswer(
-                answer_hash,
+                answer_hash_bytes,
                 int(order_id),
                 price_wei,
                 to_checksum_address(seller_address)
@@ -492,7 +495,7 @@ class OrderContractManager:
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
             print("✅ sent:", tx_hash.hex())
             return tx_hash.hex()
-            
+
         except Exception as e:
             logger.error(f"Error proposing answer for order {order_id}: {str(e)}")
             raise

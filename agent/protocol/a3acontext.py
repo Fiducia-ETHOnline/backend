@@ -39,6 +39,11 @@ def A3ATXHashPacket(hash):
     return A3AResponse(type='hash',content=hash)
 def A3AMerchantWalletQuery():
     return A3AContext(messages=[A3AMessage(role='query_wallet',content='')])
+def A3AMerchantMenuQuery():
+    return A3AContext(messages=[A3AMessage(role='query_menu', content='')])
+def A3AMenuResponse(menu_lines:str):
+    # menu_lines is a pre-formatted string like "- item: $price\n- item2: $price2"
+    return A3AResponse(type='menu', content=menu_lines)
 def A3AProposeCtx(desc:str,price:str,cid:str,offerId:str,wallet:str):
     return A3AContext(messages=[A3AMessage(role='answer_order',content= A3ACustomerProposeRequest(desc=desc,
                                                           price=price,
