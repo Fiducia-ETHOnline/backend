@@ -48,6 +48,10 @@ MERCHANT_AGENT_ADDRESS = os.getenv(
     'agent1qf9ua6p2gz6nx47emvsf5d9840h7wpfwlcqhsqt4zz0dun8tj43l23jtuch'
 )
 
+# Default merchant scope used when querying the merchant agent for menu/wallet.
+# This should match the merchant_id used during admin updates (if any).
+DEFAULT_MERCHANT_ID = os.getenv('DEFAULT_MERCHANT_ID', '1')
+
 order_contract.user_account
 system_prompt = '''
 You are Fiducia, the user's personal assistant, especially handling booking and shopping for the user for now with Web3.
@@ -215,10 +219,19 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
             ]
     # Always fetch the merchant's current menu from merchant agent to ground the model
     try:
-        menu_resp = await try_send_to_merchant(A3AMerchantMenuQuery())
+        # Scope the menu query to a specific merchant_id so it reflects admin updates
+        menu_resp = await try_send_to_merchant(A3AMerchantMenuQuery(DEFAULT_MERCHANT_ID))
         menu_text = _safe_content(menu_resp)
     except Exception:
         menu_text = None
+
+    # Build a single system message as the FIRST message (ASI requires system first)
+    system_content = system_prompt
+    if menu_text:
+        system_content += f"\n\nMerchant menu (live):\n{menu_text}"
+    msgs = [
+                {"role": "system", "content": system_content},
+            ]
 
     for item in msg.messages:
         if item['role'] == 'wallet':
@@ -228,9 +241,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
     if wallet_address == '':
         await ctx.send(sender,A3AErrorPacket('Cannot find wallet address in this context!'))
         return
-    # Inject the merchant menu into the system prompt so the model always sees the live menu
-    if menu_text:
-        msgs.append({"role": "system", "content": f"Merchant menu (live):\n{menu_text}"})
+    # Do NOT append another system message; keep only the first system message per ASI API rules
     
     # msgs.extend(msg.messages)
     try:
@@ -271,7 +282,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                         # Create order (agent signs and emits OrderProposed)
                         orderid, txhash = real_create_propose(digest, wallet_address)
                         # Get merchant payout wallet
-                        mw_resp = await try_send_to_merchant(A3AMerchantWalletQuery())
+                        mw_resp = await try_send_to_merchant(A3AMerchantWalletQuery(DEFAULT_MERCHANT_ID))
                         merchant_wallet = _safe_content(mw_resp).strip()
                         # Validate merchant wallet; fallback to env if invalid
                         if not is_valid_ethereum_address(merchant_wallet):
@@ -300,7 +311,13 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                     return
                  else:
                     message = arguments['message']
-                    resp:A3AResponse = await try_send_to_merchant(A3AContext(messages=[{'role':'user','content':message}]))
+                    # Include merchant_id hint so the merchant LLM path is scoped correctly
+                    resp:A3AResponse = await try_send_to_merchant(
+                        A3AContext(messages=[
+                            {'role':'agent','content': f'merchant_id:{DEFAULT_MERCHANT_ID}'},
+                            {'role':'user','content':message}
+                        ])
+                    )
                     ctx.logger.info(f'From merchant agent:\n{resp}')
                     # ctx.logger.info("The agent tries to consult a merchant agent:")
                     # ctx.logger.info(message)

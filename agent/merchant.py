@@ -33,8 +33,20 @@ from metta.utils import (
     get_location,
 )
 
-# Global MeTTa instance for merchant knowledge
-METTA_INSTANCE: MeTTa | None = create_metta()
+# Global MeTTa instance for merchant knowledge (lazy, NFT-gated via admin API)
+METTA_INSTANCE: MeTTa | None = None
+
+def _ensure_metta_for_admin() -> MeTTa:
+    """Create the MeTTa instance on-demand for admin-only mutations.
+
+    Admin access is already NFT-gated at the API layer (only role='merchant' can
+    send agent-role messages). We avoid creating any MeTTa state unless an admin
+    mutation is performed.
+    """
+    global METTA_INSTANCE
+    if METTA_INSTANCE is None:
+        METTA_INSTANCE = create_metta()
+    return METTA_INSTANCE
 from blockchain.order_contract import OrderContractManager
 
 from agent.contract import get_erc20_abi,get_contract_abi
@@ -59,16 +71,17 @@ MERCHANT_WALLET_ADDRESS = os.getenv(
 )
 
 system_prompt='''
-You are an agent works as a merchant seller:
-Customer may chat to you with their needs.
-You need:
-1. If customer tell you their need, you should check your product list, and find the best match one.
-   If no product is matched, just tell the customer no matched product or and suggest a similar product.
-   When responding, you should send both the product description and product's price to the customer
-2. You should never respond an empty string, even if there is no best match, try to find the most similar one; if no similar one, return some text to indicate the situation and give some suggestion
-3. You should ALWAYS include the merchant's name: Test Pizza Agent in EVERY response to user
-Here's your product list:
+You are the merchant's sales assistant.
+Customers will chat to describe what they want. Your job is to:
+1. Check the current product list (menu) and pick the best match.
+    If nothing matches exactly, say so and suggest the closest option.
+    Always include the product name and price in your reply.
+2. Never reply with an empty message; if there’s no good match, say that clearly and propose alternatives.
+3. Keep responses concise and helpful.
 
+Notes:
+- The live menu may be provided separately in the system context as "Available Menu (via MeTTa)".
+- If the menu is empty, request more details or suggest nearby options, but do not invent unavailable items.
 '''
 
 
@@ -144,13 +157,8 @@ A3AMerchantAgent = Agent(
 # On agent startup printing address
 @A3AMerchantAgent.on_event("startup")
 async def agent_details(ctx: Context):
-    ctx.logger.info(f"Search Agent Address is {A3AMerchantAgent.address}")
-    # Seed menu into MeTTa graph (idempotent)
-    if METTA_INSTANCE:
-        add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "meat_pizza", "15")
-        add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "onion_pizza", "10")
-        add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "pineapple_pizza", "8")
-        add_menu_item(METTA_INSTANCE, "TestPizzaAgent", "cheese_pizza", "12")
+    ctx.logger.info(f"Merchant Agent Address is {A3AMerchantAgent.address}")
+    # Do not create or seed MeTTa here. MeTTa is created only when an admin mutation occurs.
 
 
 # On_query handler for news_url request
@@ -225,39 +233,40 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
             last_admin_content = content
 
     # Apply only the latest admin command once per request
-    if last_admin_content and METTA_INSTANCE:
+    if last_admin_content:
+        metta = _ensure_metta_for_admin()
         content = last_admin_content
         try:
             if content.startswith('set_wallet:'):
-                set_merchant_wallet(METTA_INSTANCE, merchant_label, content.split(':',1)[1].strip())
+                set_merchant_wallet(metta, merchant_label, content.split(':',1)[1].strip())
                 admin_action_present = True
             elif content.startswith('add_item:'):
                 _, rest = content.split(':',1)
                 name, price = [s.strip() for s in rest.split(':',1)]
-                add_menu_item(METTA_INSTANCE, merchant_label, name, price)
+                add_menu_item(metta, merchant_label, name, price)
                 admin_action_present = True
             elif content.startswith('update_price:'):
                 _, rest = content.split(':',1)
                 name, price = [s.strip() for s in rest.split(':',1)]
-                update_item_price(METTA_INSTANCE, name, price)
+                update_item_price(metta, name, price)
                 admin_action_present = True
             elif content.startswith('remove_item:'):
                 name = content.split(':',1)[1].strip()
-                remove_menu_item(METTA_INSTANCE, merchant_label, name)
+                remove_menu_item(metta, merchant_label, name)
                 admin_action_present = True
             elif content.startswith('set_desc:'):
-                set_merchant_description(METTA_INSTANCE, merchant_label, content.split(':',1)[1].strip())
+                set_merchant_description(metta, merchant_label, content.split(':',1)[1].strip())
                 admin_action_present = True
             elif content.startswith('set_hours:'):
-                set_open_hours(METTA_INSTANCE, merchant_label, content.split(':',1)[1].strip())
+                set_open_hours(metta, merchant_label, content.split(':',1)[1].strip())
                 admin_action_present = True
             elif content.startswith('set_location:'):
-                set_location(METTA_INSTANCE, merchant_label, content.split(':',1)[1].strip())
+                set_location(metta, merchant_label, content.split(':',1)[1].strip())
                 admin_action_present = True
             elif content.startswith('set_item_desc:'):
                 _, rest = content.split(':',1)
                 name, desc = [s.strip() for s in rest.split(':',1)]
-                set_item_description(METTA_INSTANCE, name, desc)
+                set_item_description(metta, name, desc)
                 admin_action_present = True
         except Exception as e:
             ctx.logger.warning(f"Failed to apply admin command '{content}': {e}")
@@ -281,7 +290,7 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
             extras_text = ("\n" + "\n".join(extras)) if extras else ""
             ack = (
                 f"Merchant verified; managing merchant_id={merchant_label}. "
-                f"Updated settings applied. Test Pizza Agent — Here's the current menu:\n{menu_lines}{extras_text}"
+                f"Updated settings applied. Merchant {merchant_label} — Here's the current menu:\n{menu_lines}{extras_text}"
             )
             await ctx.send(sender, A3AResponse(type='chat', content=ack))
             return
@@ -311,7 +320,7 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
             if fallback_menu:
                 items = "\n".join([f"- {i}: ${p}" for i, p in fallback_menu])
                 fallback_text = (
-                    "Test Pizza Agent — Here's our current menu (fallback):\n"
+                    f"Merchant {merchant_label} — Here's our current menu (fallback):\n"
                     f"{items}\n\n"
                     "Tell me what you'd like, and I can help you place an order."
                 )

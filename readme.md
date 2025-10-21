@@ -137,28 +137,41 @@ python start_customer.py
 python start_merchant.py
 ```
 
-## API Endpoints
+## API Endpoints (Current)
 
 ### Authentication
-- `POST /api/auth/challenge` - Generate authentication challenge
-- `POST /api/auth/login` - User login with credentials
+- `GET /api/auth/challenge?address=<0x...>` – Returns a message with a nonce to sign
+- `POST /api/auth/login` – Body: `{ address, signature }` – Returns JWT and user role/merchant_id
 
-### Order Management
-- `GET /orders/` - List all orders
-- `POST /orders/propose` - Propose new order
-- `POST /orders/{order_id}/confirm` - Confirm order
-- `POST /orders/{order_id}/cancel` - Cancel order
-- `GET /orders/{order_id}/status` - Get order status
+### Customer
+- `POST /api/chat/messages` – Forward chat to Customer Agent
+  - Body: `{ messages: [{ role: 'user'|'assistant', content: string }, ...] }`
+- `POST /api/token/buya3a` – Build a buy A3A token transaction
+  - Body: `{ pyusd: number }`
+- `GET /api/orders` – List orders for the authenticated user
+- `POST /api/orders/{orderId}/confirm-payment` – Verify txHash on-chain
+  - Body: `{ txHash: string }`
+- `POST /api/orders/{orderId}/confirm-finish` – Finalize order
+- `POST /api/orders/{orderId}/dispute` – Open a dispute
 
-### Agent Operations
-- `POST /orders/agent/propose` - Agent propose order
-- `POST /orders/agent/respond` - Agent respond to order
-- `GET /orders/agent/queue` - Get agent message queue
+### Merchant
+- `GET /api/tasks` – Get assigned tasks (mock/demo)
+- `POST /api/tasks/{orderId}/status` – Update a task status (mock/demo)
+- `POST /api/merchant/chat/messages` – Forward chat/admin messages to Merchant Agent
+  - Body: `{ messages: [{ role: 'agent'|'user'|'assistant'|'query_wallet'|'query_menu', content: string }] }`
+  - To scope to a merchant, include `{ role: 'agent', content: 'merchant_id:<id>' }`
 
-### Blockchain Queries
-- `GET /orders/contract/info` - Get contract information
-- `GET /orders/events/{event_type}` - Query blockchain events
-- `POST /orders/initialize` - Initialize contract connection
+### Admin commands (merchant)
+Send as `role='agent'` through `/api/merchant/chat/messages`. Names can be multi‑word; price is the final field.
+
+- `set_wallet:0xYourMerchantAddress`
+- `add_item:<name>:<price>` – e.g., `add_item:cheese pizza:5`
+- `update_price:<name>:<new_price>` – e.g., `update_price:cheese pizza:6`
+- `remove_item:<name>` – e.g., `remove_item:cheese pizza`
+- `set_desc:<text>`
+- `set_hours:<text>`
+- `set_location:<text>`
+- `set_item_desc:<name>:<text>`
 
 ## Smart Contract Integration
 

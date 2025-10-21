@@ -2,6 +2,19 @@ import json
 from openai import OpenAI
 from .generalrag import GeneralRAG
 from hyperon import MeTTa, E, S, ValueAtom
+import re
+
+def _normalize_item_name(name: str) -> str:
+    """Create a safe symbol slug for an item name.
+    - Lowercase
+    - Replace whitespace and non-alphanumerics with underscore
+    - Collapse multiple underscores
+    - Strip leading/trailing underscores
+    """
+    s = name.strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return s or "item"
 
 def create_metta() -> MeTTa:
     """Factory to create and return a MeTTa instance."""
@@ -23,17 +36,23 @@ def _has_any_match(res) -> bool:
     return False
 
 def add_menu_item(metta: MeTTa, merchant_name: str, item_name: str, price: str):
-    """Upsert a merchant menu item: ensure single (menu <merchant> <item>) and append (price <item> <value>).
-    Uses Python-side existence check to be robust to merchant names with special chars (e.g., addresses).
+    """Upsert a merchant menu item using a normalized slug, plus a display name mapping.
+    Graph entries:
+      (menu <merchant> <slug>)
+      (item-display <slug> <original_display_name>)
+      (price <slug> <value>)  # price entries are append-only; latest is used
     """
-    existing = {i for (i, _p) in (get_menu_for_merchant(metta, merchant_name) or [])}
-    if item_name in existing:
-        # Only append a new price value
-        metta.space().add_atom(E(S("price"), S(item_name), ValueAtom(price)))
+    slug = _normalize_item_name(item_name)
+    # Check if slug already present among merchant items (by slug)
+    existing_slugs = { _normalize_item_name(i) for (i, _p) in (get_menu_for_merchant(metta, merchant_name) or []) }
+    if slug in existing_slugs:
+        metta.space().add_atom(E(S("price"), S(slug), ValueAtom(price)))
+        # Refresh display mapping as well, in case capitalization/spaces changed
+        metta.space().add_atom(E(S("item-display"), S(slug), ValueAtom(item_name)))
         return
-    # Otherwise create both relations
-    metta.space().add_atom(E(S("menu"), S(merchant_name), S(item_name)))
-    metta.space().add_atom(E(S("price"), S(item_name), ValueAtom(price)))
+    metta.space().add_atom(E(S("menu"), S(merchant_name), S(slug)))
+    metta.space().add_atom(E(S("item-display"), S(slug), ValueAtom(item_name)))
+    metta.space().add_atom(E(S("price"), S(slug), ValueAtom(price)))
 
 def get_menu_for_merchant(metta: MeTTa, merchant_name: str):
     """Retrieve items for a merchant: returns list of (item, price).
@@ -44,6 +63,20 @@ def get_menu_for_merchant(metta: MeTTa, merchant_name: str):
     pairs = metta.run("!(match &self (menu $m $i) ($m $i))")
     results = []
     seen_items = set()
+
+    def _get_display_for_slug(slug: str) -> str | None:
+        try:
+            res = metta.run(f"!(match &self (item-display {slug} $d) $d)")
+            # Latest display value if present
+            if res and res[-1]:
+                v = res[-1][-1] if isinstance(res[-1], list) else res[-1]
+                try:
+                    return v.get_object().value  # type: ignore
+                except Exception:
+                    return str(v)
+        except Exception:
+            return None
+        return None
 
     def handle_pair(m_sym: str, i_sym: str):
         if m_sym != merchant_name:
@@ -57,7 +90,8 @@ def get_menu_for_merchant(metta: MeTTa, merchant_name: str):
         price_res = metta.run(f"!(match &self (price {i_sym} $p) $p)")
         # Use the latest price if multiple price entries exist
         price = _latest_value_from_match(price_res)
-        results.append((i_sym, price))
+        display = _get_display_for_slug(i_sym)
+        results.append((display or i_sym, price))
         seen_items.add(i_sym)
 
     for r in pairs or []:
@@ -132,18 +166,22 @@ def get_merchant_wallet(metta: MeTTa, merchant_name: str):
 # Item details
 
 def set_item_description(metta: MeTTa, item_name: str, description: str):
-    metta.space().add_atom(E(S("item-desc"), S(item_name), ValueAtom(description)))
+    slug = _normalize_item_name(item_name)
+    metta.space().add_atom(E(S("item-desc"), S(slug), ValueAtom(description)))
 
 def get_item_description(metta: MeTTa, item_name: str):
-    res = metta.run(f"!(match &self (item-desc {item_name} $d) $d)")
+    slug = _normalize_item_name(item_name)
+    res = metta.run(f"!(match &self (item-desc {slug} $d) $d)")
     return res[-1][0].get_object().value if res and res[-1] else None
 
 def update_item_price(metta: MeTTa, item_name: str, new_price: str):
-    """Append a new price value; retrieval will use the latest entry."""
-    metta.space().add_atom(E(S("price"), S(item_name), ValueAtom(new_price)))
+    """Append a new price value for the normalized slug; retrieval uses the latest entry."""
+    slug = _normalize_item_name(item_name)
+    metta.space().add_atom(E(S("price"), S(slug), ValueAtom(new_price)))
 
 def get_item_price(metta: MeTTa, item_name: str):
-    res = metta.run(f"!(match &self (price {item_name} $p) $p)")
+    slug = _normalize_item_name(item_name)
+    res = metta.run(f"!(match &self (price {slug} $p) $p)")
     # Prefer the latest entry regardless of row/value shape
     return _latest_value_from_match(res)
 
@@ -170,8 +208,9 @@ def _latest_value_from_match(res):
         return str(val)
 
 def remove_menu_item(metta: MeTTa, merchant_name: str, item_name: str):
-    """Soft-remove a menu item by writing a tombstone relation (removed-menu merchant item)."""
-    metta.space().add_atom(E(S("removed-menu"), S(merchant_name), S(item_name)))
+    """Soft-remove a menu item by writing a tombstone relation (removed-menu merchant slug)."""
+    slug = _normalize_item_name(item_name)
+    metta.space().add_atom(E(S("removed-menu"), S(merchant_name), S(slug)))
     return True
 
 class LLM:

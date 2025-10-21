@@ -84,15 +84,16 @@ def to_admin_command(s: str) -> str | None:
     if parts[0] == '/set_wallet' and len(parts) == 2:
         return f"set_wallet:{parts[1]}"
     if parts[0] == '/add_item' and len(parts) >= 3:
-        name = parts[1]
-        price = parts[2]
+        # Support multi-word item names: last token is price, preceding tokens form the name
+        price = parts[-1]
+        name = ' '.join(parts[1:-1])
         return f"add_item:{name}:{price}"
     if parts[0] == '/update_price' and len(parts) >= 3:
-        name = parts[1]
-        price = parts[2]
+        price = parts[-1]
+        name = ' '.join(parts[1:-1])
         return f"update_price:{name}:{price}"
     if parts[0] == '/remove_item' and len(parts) >= 2:
-        name = parts[1]
+        name = ' '.join(parts[1:])
         return f"remove_item:{name}"
     if parts[0] == '/set_desc' and len(parts) >= 2:
         return f"set_desc:{' '.join(parts[1:])}"
