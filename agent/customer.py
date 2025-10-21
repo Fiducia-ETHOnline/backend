@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 from blockchain.order_contract import OrderContractManager
 from storage.lighthouse import upload_order_desc,CID2Digest,CIDRebuild
 from agent.contract import get_erc20_abi,get_contract_abi
+from blockchain.utils import is_valid_ethereum_address, to_checksum_address
 # Load environment variables from .env
 load_dotenv()
 from hyperon import MeTTa
@@ -245,14 +246,25 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
 
                     try:
                         digest = real_upload_order(wallet_address,desc,price)
-                        orderid,txhash = real_create_propose(digest,wallet_address) # proposeOrder() #1 connect sc
-                        merchant_wallet = await try_send_to_merchant(A3AMerchantWalletQuery())
-                        merchant_wallet = merchant_wallet.content
-                        txhash = real_answer_propose(orderid,price,merchant_wallet)
-                        transaction = real_confirm_order(orderid,wallet_address)
+                        # Create order (agent signs and emits OrderProposed)
+                        orderid, txhash = real_create_propose(digest, wallet_address)
+                        # Get merchant payout wallet
+                        mw_resp = await try_send_to_merchant(A3AMerchantWalletQuery())
+                        merchant_wallet = str(mw_resp.content).strip()
+                        # Validate merchant wallet; fallback to env if invalid
+                        if not is_valid_ethereum_address(merchant_wallet):
+                            fallback_wallet = os.getenv('MERCHANT_WALLET_ADDRESS', '')
+                            if not is_valid_ethereum_address(fallback_wallet):
+                                raise ValueError(f"Invalid merchant wallet returned ('{merchant_wallet}') and fallback not set.")
+                            merchant_wallet = fallback_wallet
+                        merchant_wallet = to_checksum_address(merchant_wallet)
+                        # Ensure numeric price for propose_answer
+                        price_float = float(str(price))
+                        _txhash_ans = real_answer_propose(orderid, price_float, merchant_wallet)
+                        transaction = real_confirm_order(orderid, wallet_address)
                     except Exception as e:
-                        print(e)
-                        await ctx.send(sender,A3AErrorPacket('Fail to create_propose! Possible reasons: Insufficient balance/allowance of A3AToken'))
+                        ctx.logger.exception('Order creation failed')
+                        await ctx.send(sender, A3AErrorPacket(f"Order creation failed: {e}"))
                         return
                     await ctx.send(sender,A3AOrderResponse(
                         orderid=orderid,

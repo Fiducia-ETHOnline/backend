@@ -28,6 +28,9 @@ from metta.utils import (
     set_item_description,
     set_merchant_wallet,
     get_merchant_wallet,
+    get_merchant_description,
+    get_open_hours,
+    get_location,
 )
 
 # Global MeTTa instance for merchant knowledge
@@ -153,14 +156,29 @@ async def agent_details(ctx: Context):
 # On_query handler for news_url request
 @a3a_protocol.on_query(model=A3AContext, replies={A3AResponse})
 async def query_handler(ctx: Context, sender: str, msg: A3AContext):
-    # Special case: return configured or MeTTa-stored wallet
+    # Merchant identity for scoping MeTTa entries; default fallback name
+    merchant_label = "TestPizzaAgent"
+    # First pass: scan messages for a merchant_id hint to set scoping before any other handling
+    try:
+        for m in msg.messages:
+            if isinstance(m, dict):
+                role = m.get('role')
+                content = m.get('content')
+                if role in ('agent', 'system') and isinstance(content, str) and content.startswith('merchant_id:'):
+                    merchant_label = content.split(':', 1)[1].strip() or merchant_label
+    except Exception:
+        pass
+    # Special case: return configured or MeTTa-stored wallet (after merchant_label resolved)
     if msg.messages[-1]['role'] == 'query_wallet':
-        wallet = get_merchant_wallet(METTA_INSTANCE, "TestPizzaAgent") if METTA_INSTANCE else None
+        wallet = get_merchant_wallet(METTA_INSTANCE, merchant_label) if METTA_INSTANCE else None
         wallet = wallet or MERCHANT_WALLET_ADDRESS
         await ctx.send(sender, A3AWalletResponse(wallet))
         return
     wallet_address = ''
-    menu = get_menu_for_merchant(METTA_INSTANCE, "TestPizzaAgent") if METTA_INSTANCE else []
+    # Track whether this request performed an admin action (not just a merchant_id hint)
+    admin_action_present = False
+    # Precompute menu based on current merchant_label
+    menu = get_menu_for_merchant(METTA_INSTANCE, merchant_label) if METTA_INSTANCE else []
     new_system_prompt = system_prompt
     if menu:
         new_system_prompt += "\n\nAvailable Menu (via MeTTa):\n" + "\n".join([f"- {i}: ${p}" for i, p in menu])
@@ -168,10 +186,15 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
                 {"role": "system", "content": new_system_prompt},
                 
             ]
+    last_admin_content = None
     for item in msg.messages:
         role = item.get('role')
-        if role in ('user', 'agent'):
-            msgs.append(item)
+        # Only forward user-facing content to the LLM
+        if role == 'user':
+            content = item.get('content')
+            if not isinstance(content, str):
+                content = str(content)
+            msgs.append({"role": "user", "content": content})
         # Handle dynamic merchant admin updates via chat messages with 'agent' role conventions
         # Expected formats (simple, human-typed or tool-generated):
         #  - set_wallet:0xABC...
@@ -184,54 +207,119 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
         #  - set_item_desc:cheese_pizza:Creamy mozzarella and rich tomato sauce
         if role == 'agent' and isinstance(item.get('content'), str):
             content = item['content'].strip()
-            try:
-                if content.startswith('set_wallet:') and METTA_INSTANCE:
-                    set_merchant_wallet(METTA_INSTANCE, "TestPizzaAgent", content.split(':',1)[1].strip())
-                elif content.startswith('add_item:') and METTA_INSTANCE:
-                    _, rest = content.split(':',1)
-                    name, price = [s.strip() for s in rest.split(':',1)]
-                    add_menu_item(METTA_INSTANCE, "TestPizzaAgent", name, price)
-                elif content.startswith('update_price:') and METTA_INSTANCE:
-                    _, rest = content.split(':',1)
-                    name, price = [s.strip() for s in rest.split(':',1)]
-                    update_item_price(METTA_INSTANCE, name, price)
-                elif content.startswith('remove_item:') and METTA_INSTANCE:
-                    name = content.split(':',1)[1].strip()
-                    remove_menu_item(METTA_INSTANCE, "TestPizzaAgent", name)
-                elif content.startswith('set_desc:') and METTA_INSTANCE:
-                    set_merchant_description(METTA_INSTANCE, "TestPizzaAgent", content.split(':',1)[1].strip())
-                elif content.startswith('set_hours:') and METTA_INSTANCE:
-                    set_open_hours(METTA_INSTANCE, "TestPizzaAgent", content.split(':',1)[1].strip())
-                elif content.startswith('set_location:') and METTA_INSTANCE:
-                    set_location(METTA_INSTANCE, "TestPizzaAgent", content.split(':',1)[1].strip())
-                elif content.startswith('set_item_desc:') and METTA_INSTANCE:
-                    _, rest = content.split(':',1)
-                    name, desc = [s.strip() for s in rest.split(':',1)]
-                    set_item_description(METTA_INSTANCE, name, desc)
-            except Exception as e:
-                ctx.logger.warning(f"Failed to parse admin command '{content}': {e}")
+            # Merchant scoping hint is applied immediately
+            if content.startswith('merchant_id:'):
+                try:
+                    merchant_label = content.split(':', 1)[1].strip() or merchant_label
+                    menu = get_menu_for_merchant(METTA_INSTANCE, merchant_label) if METTA_INSTANCE else []
+                except Exception:
+                    ctx.logger.warning("Failed to apply merchant_id hint")
+                continue
+            # For admin mutations, only keep the last command for this turn
+            last_admin_content = content
 
-            
+    # Apply only the latest admin command once per request
+    if last_admin_content and METTA_INSTANCE:
+        content = last_admin_content
+        try:
+            if content.startswith('set_wallet:'):
+                set_merchant_wallet(METTA_INSTANCE, merchant_label, content.split(':',1)[1].strip())
+                admin_action_present = True
+            elif content.startswith('add_item:'):
+                _, rest = content.split(':',1)
+                name, price = [s.strip() for s in rest.split(':',1)]
+                add_menu_item(METTA_INSTANCE, merchant_label, name, price)
+                admin_action_present = True
+            elif content.startswith('update_price:'):
+                _, rest = content.split(':',1)
+                name, price = [s.strip() for s in rest.split(':',1)]
+                update_item_price(METTA_INSTANCE, name, price)
+                admin_action_present = True
+            elif content.startswith('remove_item:'):
+                name = content.split(':',1)[1].strip()
+                remove_menu_item(METTA_INSTANCE, merchant_label, name)
+                admin_action_present = True
+            elif content.startswith('set_desc:'):
+                set_merchant_description(METTA_INSTANCE, merchant_label, content.split(':',1)[1].strip())
+                admin_action_present = True
+            elif content.startswith('set_hours:'):
+                set_open_hours(METTA_INSTANCE, merchant_label, content.split(':',1)[1].strip())
+                admin_action_present = True
+            elif content.startswith('set_location:'):
+                set_location(METTA_INSTANCE, merchant_label, content.split(':',1)[1].strip())
+                admin_action_present = True
+            elif content.startswith('set_item_desc:'):
+                _, rest = content.split(':',1)
+                name, desc = [s.strip() for s in rest.split(':',1)]
+                set_item_description(METTA_INSTANCE, name, desc)
+                admin_action_present = True
+        except Exception as e:
+            ctx.logger.warning(f"Failed to apply admin command '{content}': {e}")
+
     print(msgs)
+    # If this is an admin-only update (no user messages), acknowledge deterministically without calling the LLM
+    if admin_action_present and len(msgs) == 1:
+        try:
+            updated_menu = get_menu_for_merchant(METTA_INSTANCE, merchant_label) if METTA_INSTANCE else []
+            menu_lines = "\n".join([f"- {i}: ${p}" for i, p in updated_menu]) if updated_menu else "(no items yet)"
+            desc = get_merchant_description(METTA_INSTANCE, merchant_label) if METTA_INSTANCE else None
+            hours = get_open_hours(METTA_INSTANCE, merchant_label) if METTA_INSTANCE else None
+            loc = get_location(METTA_INSTANCE, merchant_label) if METTA_INSTANCE else None
+            extras = []
+            if desc:
+                extras.append(f"Description: {desc}")
+            if hours:
+                extras.append(f"Hours: {hours}")
+            if loc:
+                extras.append(f"Location: {loc}")
+            extras_text = ("\n" + "\n".join(extras)) if extras else ""
+            ack = (
+                f"Merchant verified; managing merchant_id={merchant_label}. "
+                f"Updated settings applied. Test Pizza Agent — Here's the current menu:\n{menu_lines}{extras_text}"
+            )
+            await ctx.send(sender, A3AResponse(type='chat', content=ack))
+            return
+        except Exception:
+            ctx.logger.exception('Error building admin acknowledgement')
+            # fall through to model path if something unexpected happens
     try:
-      while True:
-        r = client.chat.completions.create(
-            model="asi1-mini",
-            messages=msgs,
-            max_tokens=2048,
-
-        )
-        print(r)
-        tool_calls = r.choices[0].message.tool_calls
-        
-        response = str(r.choices[0].message.content)
-        print(response)
-
-        await ctx.send(sender, A3AResponse(type='chat', content=response))
-        return
-          
-    except:
+        while True:
+            r = client.chat.completions.create(
+                model="asi1-mini",
+                messages=msgs,
+                max_tokens=2048,
+            )
+            print(r)
+            # tool_calls = r.choices[0].message.tool_calls  # unused for now
+            response = str(r.choices[0].message.content)
+            if admin_action_present:
+                response = f"Merchant verified; managing merchant_id={merchant_label}. " + response
+            print(response)
+            await ctx.send(sender, A3AResponse(type='chat', content=response))
+            return
+    except Exception:
         ctx.logger.exception('Error querying model')
+        # Fallback: build a simple response from the known menu to avoid 500s and help the user proceed
+        try:
+            fallback_menu = get_menu_for_merchant(METTA_INSTANCE, merchant_label) if METTA_INSTANCE else []
+            if fallback_menu:
+                items = "\n".join([f"- {i}: ${p}" for i, p in fallback_menu])
+                fallback_text = (
+                    "Test Pizza Agent — Here's our current menu (fallback):\n"
+                    f"{items}\n\n"
+                    "Tell me what you'd like, and I can help you place an order."
+                )
+            else:
+                fallback_text = (
+                    "I'm here to help with orders. I couldn't reach the assistant model just now, "
+                    "but you can tell me what you want and I'll try again."
+                )
+            if admin_action_present:
+                fallback_text = f"Merchant verified; managing merchant_id={merchant_label}. " + fallback_text
+            await ctx.send(sender, A3AResponse(type='chat', content=fallback_text))
+            return
+        except Exception:
+            pass
  
     msgs.pop(0)
     # send the response back to the user

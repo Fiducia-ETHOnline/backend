@@ -84,16 +84,19 @@ async def send_merchant_chat_message(
         role='wallet',
         content=to_checksum_address(current_user['address'])
     )
-
     final_msg: List[A3AMessage] = [wallet_msg]
+    # pass merchant_id hint to agent, if present
+    if current_user.get('merchant_id'):
+        final_msg.append(A3AMessage(role='agent', content=f"merchant_id:{current_user['merchant_id']}"))
     for item in msgs:
         role = item.get('role')
         content = item.get('content')
-        if role in ('user', 'assistant', 'agent') and isinstance(content, str):
+        if role in ('user', 'assistant', 'agent', 'query_wallet') and isinstance(content, str | bytes | dict | list | type(None)):
             # Only allow 'agent' role messages from authenticated merchants
             if role == 'agent' and current_user.get('role') != 'merchant':
                 raise HTTPException(status_code=403, detail="Admin updates require merchant role")
-            final_msg.append(A3AMessage(role=role, content=content))
+            # For query_wallet, content can be empty; normalize to empty string
+            final_msg.append(A3AMessage(role=role, content=content or ""))
 
     resp = await send_sync_message(merchant_agent_address, A3AContext(messages=final_msg), response_type=A3AResponse)
     return resp

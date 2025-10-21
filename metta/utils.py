@@ -7,8 +7,31 @@ def create_metta() -> MeTTa:
     """Factory to create and return a MeTTa instance."""
     return MeTTa()
 
+def _has_any_match(res) -> bool:
+    """Return True if the MeTTa result set contains any non-empty match.
+    Hyperon can return structures like [[], []] when there are no matches.
+    """
+    if not res:
+        return False
+    for row in res:
+        # A non-list row is a match
+        if not isinstance(row, list):
+            return True
+        # A list row with any elements is a match
+        if isinstance(row, list) and len(row) > 0:
+            return True
+    return False
+
 def add_menu_item(metta: MeTTa, merchant_name: str, item_name: str, price: str):
-    """Store merchant menu item as knowledge: (menu <merchant> <item>) and (price <item> <value>)."""
+    """Upsert a merchant menu item: ensure single (menu <merchant> <item>) and append (price <item> <value>).
+    Uses Python-side existence check to be robust to merchant names with special chars (e.g., addresses).
+    """
+    existing = {i for (i, _p) in (get_menu_for_merchant(metta, merchant_name) or [])}
+    if item_name in existing:
+        # Only append a new price value
+        metta.space().add_atom(E(S("price"), S(item_name), ValueAtom(price)))
+        return
+    # Otherwise create both relations
     metta.space().add_atom(E(S("menu"), S(merchant_name), S(item_name)))
     metta.space().add_atom(E(S("price"), S(item_name), ValueAtom(price)))
 
@@ -20,24 +43,13 @@ def get_menu_for_merchant(metta: MeTTa, merchant_name: str):
     """
     pairs = metta.run("!(match &self (menu $m $i) ($m $i))")
     results = []
-
-    def _has_any_match(res) -> bool:
-        """Return True if the MeTTa result set contains any non-empty match.
-        Hyperon can return structures like [[], []] when there are no matches.
-        """
-        if not res:
-            return False
-        for row in res:
-            # A non-list row is a match
-            if not isinstance(row, list):
-                return True
-            # A list row with any elements is a match
-            if isinstance(row, list) and len(row) > 0:
-                return True
-        return False
+    seen_items = set()
 
     def handle_pair(m_sym: str, i_sym: str):
         if m_sym != merchant_name:
+            return
+        # Deduplicate by item symbol
+        if i_sym in seen_items:
             return
         removed_res = metta.run(f"!(match &self (removed-menu {m_sym} {i_sym}) $x)")
         if _has_any_match(removed_res):
@@ -46,6 +58,7 @@ def get_menu_for_merchant(metta: MeTTa, merchant_name: str):
         # Use the latest price if multiple price entries exist
         price = _latest_value_from_match(price_res)
         results.append((i_sym, price))
+        seen_items.add(i_sym)
 
     for r in pairs or []:
         # Case 1: r looks like [m, i]

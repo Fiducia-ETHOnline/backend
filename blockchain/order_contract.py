@@ -165,7 +165,8 @@ class OrderContractManager:
         Returns:
             Hex string of the hash
         """
-        return '0x'+Web3.keccak(text=answer).hex()
+        # Web3.keccak(...).hex() already returns a 0x-prefixed hex string
+        return Web3.keccak(text=answer).hex()
     
     # ========== USER FUNCTIONS ==========
     def build_propose_order_transaction(self,prompt_hash:str,user_address:str):
@@ -217,9 +218,50 @@ class OrderContractManager:
         # if user_address:
         #     user_address = to_checksum_address(user_address)
         # prompt_hash = self.create_prompt_hash(prompt)
-        from_address =  self.agent_account.address
+        # Sender must be the configured agent controller account
+        if not self.agent_account:
+            raise ValueError("Agent controller account required (missing AGENT_PRIVATE_KEY)")
+        from_address = self.agent_account.address
         # print(f'from_address is {from_address}')
         try:
+            # Validate controller matches sender
+            controller_onchain = self.order_contract.functions.getAgentController().call()
+            if to_checksum_address(controller_onchain) != to_checksum_address(from_address):
+                raise ValueError(
+                    f"Agent controller mismatch. On-chain: {to_checksum_address(controller_onchain)}, signer: {to_checksum_address(from_address)}. "
+                    "Ensure AGENT_PRIVATE_KEY corresponds to the on-chain controller."
+                )
+
+            # Validate input formats early
+            if not isinstance(prompt_hash, str) or not prompt_hash.startswith("0x"):
+                raise ValueError(f"Invalid prompt_hash format: {prompt_hash}")
+            if not is_valid_ethereum_address(user_wallet_address):
+                raise InvalidAddressException(f"Invalid user wallet address: {user_wallet_address}")
+
+            # Dry-run to catch reverts early and obtain expected offerId
+            expected_offer_id = None
+            try:
+                expected_offer_id = self.order_contract.functions.proposeOrder(
+                    prompt_hash,
+                    to_checksum_address(user_wallet_address)
+                ).call({
+                    'from': from_address
+                })
+            except Exception as e:
+                # Provide actionable diagnostics on revert
+                try:
+                    controller_onchain_dbg = self.order_contract.functions.getAgentController().call()
+                except Exception:
+                    controller_onchain_dbg = "<unavailable>"
+                msg = (
+                    "proposeOrder() simulation reverted. Common causes: controller mismatch, invalid user wallet, or prompt hash. "
+                    f"Details => from: {to_checksum_address(from_address)}, onChainController: {to_checksum_address(controller_onchain_dbg) if isinstance(controller_onchain_dbg, str) else controller_onchain_dbg}, "
+                    f"userWallet: {to_checksum_address(user_wallet_address) if is_valid_ethereum_address(user_wallet_address) else user_wallet_address}, promptHash: {prompt_hash}. "
+                    f"Original error: {e}"
+                )
+                logger.error(msg)
+                raise ContractLogicError(msg)
+
             # Build transaction
             transaction = self.order_contract.functions.proposeOrder(
                 prompt_hash,
@@ -243,6 +285,8 @@ class OrderContractManager:
             # Extract order ID from events
 
             print(receipt)
+            if getattr(receipt, 'status', 0) != 1:
+                raise Exception("proposeOrder reverted (status=0). Check controller address and parameters.")
             for log in receipt.logs:
                 try:
                     decoded_log = self.order_contract.events.OrderProposed().process_log(log)
@@ -252,7 +296,10 @@ class OrderContractManager:
                 except Exception as e:
                     print(e)
                     continue
-                    
+            # If event wasn't found but tx succeeded, fall back to expected_offer_id from simulation
+            if expected_offer_id is not None:
+                logger.warning("OrderProposed event not found; using simulated offerId")
+                return str(expected_offer_id), tx_hash.hex()
             raise Exception("OrderProposed event not found in transaction receipt")
             
         except Exception as e:

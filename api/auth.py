@@ -6,6 +6,7 @@ from eth_account.messages import encode_defunct
 from eth_utils import to_checksum_address
 import json
 from .auth_dependencies import create_access_token
+from blockchain.merchant_nft import is_merchant, get_merchant_id
 
 NONCE_STORE = {}
 
@@ -55,21 +56,21 @@ async def login_with_signature(request: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
     NONCE_STORE.pop(address.lower(), None)
-    role = 'customer'
-
-    # hardcoded for merchant wallet 0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f
-    if to_checksum_address(address) == '0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f':
-        role = 'merchant'
-    token = create_access_token({
+    role = 'merchant' if is_merchant(address) else 'customer'
+    claims = {
         'address': recovered_address,
         'role': role
-    })
+    }
+    if role == 'merchant':
+        claims['merchant_id'] = get_merchant_id(address)
+    token = create_access_token(claims)
 
     response_data = {
         "token": token,
         "user": {
             "address": address,
-            "role":role
+            "role": role,
+            **({"merchant_id": claims.get('merchant_id')} if role == 'merchant' else {})
         }
     }
     return response_data

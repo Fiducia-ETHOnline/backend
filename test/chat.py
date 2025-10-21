@@ -2,9 +2,14 @@ import requests
 from utils.authlib import auth_login
 from utils.sc_tools import *
 import json,os,sys
+from dotenv import load_dotenv
+from web3 import Web3
+
+load_dotenv()
 
 ctx = []
 admin_mode = False  # when True, send mutations as role='agent'
+auto_sign = os.getenv('CHAT_AUTOSIGN', 'true').lower() == 'true'
 TEST_WALLET = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
 TEST_WALLET_PRIVATE_KEY = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'
 
@@ -37,7 +42,38 @@ headers = {'Authorization': f'Bearer {access_token}'}
 #     # using ether.js in frontend maybe?
 #     # This include private key signature
 # approve_address(TEST_WALLET_PRIVATE_KEY,10000)
-#============== =============================== =======
+def _sign_and_send(tx_obj: dict) -> tuple[str, dict]:
+    """Sign and broadcast a transaction using PRIVATE_KEY or TEST_WALLET_PRIVATE_KEY; return (tx_hash, receipt_dict)."""
+    rpc = os.getenv('CONTRACT_URL', 'http://127.0.0.1:8545')
+    w3 = Web3(Web3.HTTPProvider(rpc))
+    priv = os.getenv('PRIVATE_KEY') or os.getenv('TEST_WALLET_PRIVATE_KEY')
+    if not priv:
+        raise RuntimeError('No PRIVATE_KEY or TEST_WALLET_PRIVATE_KEY set for signing')
+    acct = w3.eth.account.from_key(priv)
+    tx = dict(tx_obj)
+    # Ensure from/chainId/nonce
+    tx['from'] = acct.address
+    if 'chainId' not in tx or not tx['chainId']:
+        tx['chainId'] = w3.eth.chain_id
+    if 'nonce' not in tx:
+        tx['nonce'] = w3.eth.get_transaction_count(acct.address)
+    signed = w3.eth.account.sign_transaction(tx, priv)
+    tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+    receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+    # Convert receipt to json-serializable dict
+    def _ser(o):
+        if isinstance(o, (bytes, bytearray)):
+            return o.hex()
+        return str(o)
+    rdict = {
+        'transactionHash': tx_hash.hex(),
+        'blockNumber': receipt.blockNumber,
+        'status': receipt.status,
+        'gasUsed': receipt.gasUsed,
+        'from': receipt['from'] if 'from' in receipt else getattr(receipt, 'from', None),
+        'to': receipt['to'] if 'to' in receipt else getattr(receipt, 'to', None),
+    }
+    return tx_hash.hex(), rdict
 
 
 def to_admin_command(s: str) -> str | None:
@@ -71,10 +107,11 @@ def to_admin_command(s: str) -> str | None:
     return None
 
 print("Type /admin on to enable admin mode, /admin off to disable. Use slash commands like /set_wallet, /add_item, /update_price, /remove_item, /set_desc, /set_hours, /set_location, /set_item_desc.")
+print(f"Auto-sign is {'ON' if auto_sign else 'OFF'} (env CHAT_AUTOSIGN). Use /sign to manually sign the last unsigned_tx.json.")
 
 while True:
     prompt = input("input chat message:").strip()
-    # Toggle admin mode
+    # Toggle admin mode or manual sign
     if prompt.lower() == '/admin on':
         admin_mode = True
         print('🔐 Admin mode enabled. Admin commands will be sent as agent-role messages.')
@@ -82,6 +119,18 @@ while True:
     if prompt.lower() == '/admin off':
         admin_mode = False
         print('🙍 User mode enabled. Messages will be sent as user-role.')
+        continue
+    if prompt.lower() == '/sign':
+        try:
+            with open('unsigned_tx.json', 'r') as f:
+                tx_obj = json.load(f)
+            tx_hash, receipt = _sign_and_send(tx_obj)
+            print(f"🚀 Broadcasted tx: {tx_hash}")
+            with open('tx_receipt.json', 'w') as f:
+                json.dump(receipt, f, indent=2)
+            print('📜 Saved receipt to tx_receipt.json')
+        except Exception as e:
+            print(f"❌ Signing error: {e}")
         continue
 
     # If in admin mode and prompt is a slash command, translate to agent message
@@ -146,6 +195,16 @@ while True:
                 print('💾 Saved unsigned transaction to unsigned_tx.json')
             except Exception as e:
                 print(f"⚠️ Could not save unsigned transaction: {e}")
+            # Auto-sign and broadcast if enabled
+            if auto_sign and isinstance(tx_obj, dict):
+                try:
+                    tx_hash, receipt = _sign_and_send(tx_obj)
+                    print(f"🚀 Broadcasted tx: {tx_hash}")
+                    with open('tx_receipt.json', 'w') as f:
+                        json.dump(receipt, f, indent=2)
+                    print('📜 Saved receipt to tx_receipt.json')
+                except Exception as e:
+                    print(f"❌ Auto-signing failed: {e}")
         except Exception:
             # Fallback to raw print
             print(content)
