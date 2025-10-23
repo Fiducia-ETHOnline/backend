@@ -1,10 +1,14 @@
+import os
 import requests
+from dotenv import load_dotenv
 from eth_account import Account
 from eth_account.messages import encode_defunct
 from web3 import Web3
 
 
-API_BASE = "https://fiduciademo.123a.club/api/auth"
+load_dotenv()
+# Allow overriding the auth base via env; default to local backend
+API_BASE = os.getenv("AUTH_BASE", os.getenv("API_BASE", "http://127.0.0.1:5000")) + "/api/auth"
 # PRIVATE_KEY = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" 
 def auth_login(private_key):
     address = Account.from_key(private_key).address

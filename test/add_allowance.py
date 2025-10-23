@@ -1,6 +1,13 @@
 import requests
 from utils.authlib import auth_login
-from utils.sc_tools import *
+from utils.sc_tools import (
+    approve_address,
+    approve_pyusd,
+    check_a3a_allowance,
+    check_a3a_balance,
+    check_pyusd_allowance,
+    check_pyusd_balance,
+)
 import json, os, sys
 from dotenv import load_dotenv
 
@@ -26,5 +33,20 @@ else:
     ]
 
 for key in wallet_private_keys:
-    print("Approve 10_000 tokens for: " + key)
+    print("Approve 10_000 tokens for (A3A + pyUSD): " + key)
+    # Approve A3A
     approve_address(key, 10000)
+    # Approve pyUSD
+    approve_pyusd(key, 10000)
+    # Show post-approval balances/allowances
+    from_addr = os.getenv("PUBLIC_KEY")
+    # If PUBLIC_KEY is not the signer, derive from key
+    if not from_addr:
+        from web3 import Web3
+        from_addr = Web3(Web3.HTTPProvider(os.getenv("CONTRACT_URL", "http://127.0.0.1:8545"))).eth.account.from_key(key).address
+    print("-- Summary --")
+    try:
+        print(f"A3A balance: {check_a3a_balance(from_addr)}; allowance: {check_a3a_allowance(from_addr)}")
+        print(f"pyUSD balance: {check_pyusd_balance(from_addr)}; allowance: {check_pyusd_allowance(from_addr)}")
+    except Exception as e:
+        print(f"⚠️ Post-approval check error: {e}")
