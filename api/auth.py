@@ -7,6 +7,8 @@ from eth_utils import to_checksum_address
 import json
 from .auth_dependencies import create_access_token
 from blockchain.merchant_nft import is_merchant, get_merchant_id
+from fastapi import APIRouter, Depends, HTTPException
+from .auth_dependencies import verify_jwt_token
 
 NONCE_STORE = {}
 
@@ -34,6 +36,12 @@ async def get_challenge(address: str = Query(..., description="Wallet address"))
     print(response_data)
     return response_data
 
+@router.get('/info')
+async def get_info(current_user: dict = Depends(verify_jwt_token)):
+    return {
+        'address':current_user['address'],
+        'role':current_user['role']
+    }
 @router.post('/login')
 async def login_with_signature(request: LoginRequest):
     global NONCE_STORE

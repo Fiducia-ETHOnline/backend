@@ -578,6 +578,23 @@ class OrderContractManager:
             status=OrderStatus(offer[7]),
             status_name=OrderStatus(offer[7]).name
         )
+    def get_merchant_order_details(self, user_address: str, order_id: str) -> OrderDetails:
+        """Get complete order details for a merchant's order"""
+        user_address = to_checksum_address(user_address)
+        offer = self.order_contract.functions.getMerchantOrderDetails(user_address, int(order_id)).call()
+        print(offer)
+        return OrderDetails(
+            order_id=order_id,
+            buyer=offer[0],
+            seller=offer[1],
+            prompt_hash=offer[2].hex(),
+            answer_hash=offer[3].hex(),
+            price=(offer[4]/(10**6)),
+            paid=(offer[5]/(10**6)),
+            timestamp=datetime.fromtimestamp(offer[6]),
+            status=OrderStatus(offer[7]),
+            status_name=OrderStatus(offer[7]).name
+        )
     
     def get_order_details_by_id(self, order_id: str) -> OrderDetails:
         """Get order details by order ID"""

@@ -78,6 +78,12 @@ async def confirm_payment(
     request: PaymentConfirmationRequest,
     current_user: dict = Depends(verify_jwt_token)
 ):
+    if current_user['role']=='merchant':
+        # return{
+            return {
+            'status':'NOT_A_CUSTOMER',
+            'message': 'You must be a customer to use this api!'
+            }
     tx_hash = request.txHash
     if not tx_hash:
         raise HTTPException(status_code=400, detail="Transaction hash (txHash) is required")
@@ -103,18 +109,19 @@ async def confirm_payment(
 @router.get('/orders')
 async def get_my_orders(current_user: dict = Depends(verify_jwt_token)):
     address = current_user['address']
+    role = current_user['role']
     # try:
-    mock_order_ids = backend_ordercontract.get_user_order_ids(address)
+    mock_order_ids = backend_ordercontract.get_user_order_ids(address) if role =='customer' else backend_ordercontract.get_merchant_order_ids(address)
     mock_orders =[
 
     ]
     for ids in mock_order_ids:
-        order_detail = backend_ordercontract.get_user_order_details(address,ids)
+        order_detail = backend_ordercontract.get_user_order_details(address,ids) if role=='customer' else backend_ordercontract.get_merchant_order_details(address,ids)
         mock_orders.append({
             'orderId':order_detail.order_id,
             'cid': CIDRebuild(order_detail.prompt_hash),
             'status':order_detail.status_name,
-            'amount':str(order_detail.price)+' USDC'
+            'amount':str(order_detail.price)+' pyUSD'
         })
     # except Exception as e:
         # raise HTTPException(status_code=400, detail="Transaction hash (txHash) is required")
@@ -136,6 +143,14 @@ async def confirm_order_received(
     current_user: dict = Depends(verify_jwt_token)
 ):
     address = current_user['address']
+    if current_user['role']=='merchant':
+        # return{
+            return {
+            'orderId':orderId,
+            'status':'NOT_A_CUSTOMER',
+            'message': 'You must be a customer to use this api!'
+            }
+        # }
     try:
         txhash = backend_ordercontract.finalize_order(orderId)
     except Exception as e:
