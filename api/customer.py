@@ -34,7 +34,7 @@ async def send_chat_message(
 ):
     # print(request.dict())
     wallet_msg =A3AMessage(
-        role='wallet',
+        role='wallet' if current_user['role'] =='customer' else 'merchant_wallet',
         content= to_checksum_address(current_user['address'])
     )
     msgs = request.messages
