@@ -31,6 +31,19 @@ from metta.utils import (
     get_merchant_description,
     get_open_hours,
     get_location,
+    _normalize_item_name,
+)
+from metta.storage import (
+    merchant_file,
+    load_merchant_into,
+    append_menu_item as storage_append_menu_item,
+    append_price as storage_append_price,
+    append_remove_item as storage_append_remove,
+    append_wallet as storage_append_wallet,
+    append_desc as storage_append_desc,
+    append_hours as storage_append_hours,
+    append_location as storage_append_location,
+    append_item_desc as storage_append_item_desc,
 )
 
 # Global MeTTa instance for merchant knowledge (lazy, NFT-gated via admin API)
@@ -46,6 +59,18 @@ def _ensure_metta_for_admin() -> MeTTa:
     global METTA_INSTANCE
     if METTA_INSTANCE is None:
         METTA_INSTANCE = create_metta()
+    return METTA_INSTANCE
+
+def _ensure_metta_for_read(merchant_label: str) -> MeTTa:
+    """Ensure a MeTTa instance exists and is hydrated from storage for this merchant."""
+    global METTA_INSTANCE
+    if METTA_INSTANCE is None:
+        METTA_INSTANCE = create_metta()
+    # Load persisted facts (idempotent)
+    try:
+        load_merchant_into(METTA_INSTANCE, merchant_label)
+    except Exception:
+        pass
     return METTA_INSTANCE
 from blockchain.order_contract import OrderContractManager
 
@@ -179,12 +204,14 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
     # Special cases: queries that bypass LLM
     last_role = msg.messages[-1]['role']
     if last_role == 'query_wallet':
-        wallet = get_merchant_wallet(METTA_INSTANCE, merchant_label) if METTA_INSTANCE else None
+        metta_ro = _ensure_metta_for_read(merchant_label)
+        wallet = get_merchant_wallet(metta_ro, merchant_label)
         wallet = wallet or MERCHANT_WALLET_ADDRESS
         await ctx.send(sender, A3AWalletResponse(wallet))
         return
     if last_role == 'query_menu':
-        menu = get_menu_for_merchant(METTA_INSTANCE, merchant_label) if METTA_INSTANCE else []
+        metta_ro = _ensure_metta_for_read(merchant_label)
+        menu = get_menu_for_merchant(metta_ro, merchant_label)
         menu_lines = "\n".join([f"- {i}: ${p}" for i, p in (menu or [])]) if menu else "(no items yet)"
         await ctx.send(sender, A3AMenuResponse(menu_lines))
         return
@@ -192,7 +219,8 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
     # Track whether this request performed an admin action (not just a merchant_id hint)
     admin_action_present = False
     # Precompute menu based on current merchant_label
-    menu = get_menu_for_merchant(METTA_INSTANCE, merchant_label) if METTA_INSTANCE else []
+    metta_ro = _ensure_metta_for_read(merchant_label)
+    menu = get_menu_for_merchant(metta_ro, merchant_label)
     new_system_prompt = system_prompt
     if menu:
         new_system_prompt += "\n\nAvailable Menu (via MeTTa):\n" + "\n".join([f"- {i}: ${p}" for i, p in menu])
@@ -242,35 +270,76 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
         content = last_admin_content
         try:
             if content.startswith('set_wallet:'):
-                set_merchant_wallet(metta, merchant_label, content.split(':',1)[1].strip())
+                wallet = content.split(':',1)[1].strip()
+                set_merchant_wallet(metta, merchant_label, wallet)
+                try:
+                    storage_append_wallet(merchant_file(merchant_label), merchant_label, wallet)
+                except Exception:
+                    pass
                 admin_action_present = True
             elif content.startswith('add_item:'):
                 _, rest = content.split(':',1)
                 name, price = [s.strip() for s in rest.split(':',1)]
                 add_menu_item(metta, merchant_label, name, price)
+                # Persist: menu + item-display + price
+                try:
+                    slug = _normalize_item_name(name)
+                    storage_append_menu_item(merchant_file(merchant_label), merchant_label, slug, name, price)
+                except Exception:
+                    pass
                 admin_action_present = True
             elif content.startswith('update_price:'):
                 _, rest = content.split(':',1)
                 name, price = [s.strip() for s in rest.split(':',1)]
                 update_item_price(metta, name, price)
+                try:
+                    slug = _normalize_item_name(name)
+                    storage_append_price(merchant_file(merchant_label), slug, price)
+                except Exception:
+                    pass
                 admin_action_present = True
             elif content.startswith('remove_item:'):
                 name = content.split(':',1)[1].strip()
                 remove_menu_item(metta, merchant_label, name)
+                try:
+                    slug = _normalize_item_name(name)
+                    storage_append_remove(merchant_file(merchant_label), merchant_label, slug)
+                except Exception:
+                    pass
                 admin_action_present = True
             elif content.startswith('set_desc:'):
-                set_merchant_description(metta, merchant_label, content.split(':',1)[1].strip())
+                desc = content.split(':',1)[1].strip()
+                set_merchant_description(metta, merchant_label, desc)
+                try:
+                    storage_append_desc(merchant_file(merchant_label), merchant_label, desc)
+                except Exception:
+                    pass
                 admin_action_present = True
             elif content.startswith('set_hours:'):
-                set_open_hours(metta, merchant_label, content.split(':',1)[1].strip())
+                hours = content.split(':',1)[1].strip()
+                set_open_hours(metta, merchant_label, hours)
+                try:
+                    storage_append_hours(merchant_file(merchant_label), merchant_label, hours)
+                except Exception:
+                    pass
                 admin_action_present = True
             elif content.startswith('set_location:'):
-                set_location(metta, merchant_label, content.split(':',1)[1].strip())
+                loc = content.split(':',1)[1].strip()
+                set_location(metta, merchant_label, loc)
+                try:
+                    storage_append_location(merchant_file(merchant_label), merchant_label, loc)
+                except Exception:
+                    pass
                 admin_action_present = True
             elif content.startswith('set_item_desc:'):
                 _, rest = content.split(':',1)
                 name, desc = [s.strip() for s in rest.split(':',1)]
                 set_item_description(metta, name, desc)
+                try:
+                    slug = _normalize_item_name(name)
+                    storage_append_item_desc(merchant_file(merchant_label), slug, desc)
+                except Exception:
+                    pass
                 admin_action_present = True
         except Exception as e:
             ctx.logger.warning(f"Failed to apply admin command '{content}': {e}")
