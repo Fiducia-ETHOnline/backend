@@ -201,6 +201,7 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
                 
             ]
     last_admin_content = None
+    print(msg.messages)
     for item in msg.messages:
         role = item.get('role')
         # Only forward user-facing content to the LLM
@@ -221,6 +222,7 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
         #  - set_item_desc:cheese_pizza:Creamy mozzarella and rich tomato sauce
         if role == 'agent' and isinstance(item.get('content'), str):
             content = item['content'].strip()
+            print(f'recv admin: {content}')
             # Merchant scoping hint is applied immediately
             if content.startswith('merchant_id:'):
                 try:
@@ -234,6 +236,8 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
 
     # Apply only the latest admin command once per request
     if last_admin_content:
+        print('is last time admin:')
+    
         metta = _ensure_metta_for_admin()
         content = last_admin_content
         try:

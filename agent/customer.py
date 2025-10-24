@@ -251,6 +251,8 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
             {'role':'agent','content':msgs[-1]['content']}
         ])
         )
+        print('customer -> merchant admin:')
+        print(resp)
         ctx.send(sender,A3AResponse(type='chat',content= resp.content))
         return
     # Do NOT append another system message; keep only the first system message per ASI API rules
