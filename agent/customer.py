@@ -236,7 +236,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
     for item in msg.messages:
         if item['role'] == 'wallet':
             wallet_address = item['content'].lower().strip()
-        elif item['role'] == 'p':
+        elif item['role'] == 'merchant_wallet':
             wallet_address = item['content'].lower().strip()
             is_merchant = True 
         else:
