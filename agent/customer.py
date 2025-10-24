@@ -236,7 +236,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
     for item in msg.messages:
         if item['role'] == 'wallet':
             wallet_address = item['content'].lower().strip()
-        elif item['role'] == 'merchant_wallet':
+        elif item['role'] == 'p':
             wallet_address = item['content'].lower().strip()
             is_merchant = True 
         else:
@@ -247,7 +247,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
     if is_merchant:
         resp:A3AResponse = await try_send_to_merchant(
         A3AContext(messages=[
-            {'role':'agent','content': f'merchant_id:{DEFAULT_MERCHANT_ID}'},
+            # {'role':'agent','content': f'merchant_id:{DEFAULT_MERCHANT_ID}'},
             {'role':'agent','content':msgs[-1]['content']}
         ])
         )
