@@ -251,7 +251,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
             resp:A3AResponse = await try_send_to_merchant(
             A3AContext(messages=[
                 # {'role':'agent','content': f'merchant_id:{DEFAULT_MERCHANT_ID}'},
-                {'role':'agent','content':msgs[-1]['content']}
+                {'role':'agent','content':content}
             ])
             )
             print('customer -> merchant admin:')
