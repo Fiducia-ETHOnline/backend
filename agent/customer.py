@@ -245,16 +245,19 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
         await ctx.send(sender,A3AErrorPacket('Cannot find wallet address in this context!'))
         return
     if is_merchant:
-        resp:A3AResponse = await try_send_to_merchant(
-        A3AContext(messages=[
-            # {'role':'agent','content': f'merchant_id:{DEFAULT_MERCHANT_ID}'},
-            {'role':'agent','content':msgs[-1]['content']}
-        ])
-        )
-        print('customer -> merchant admin:')
-        print(resp)
-        ctx.send(sender,A3AResponse(type='chat',content= resp.content))
-        return
+        content = msgs[-1]['content']
+        if content.startswith('/'):
+            content = content.removeprefix('/')
+            resp:A3AResponse = await try_send_to_merchant(
+            A3AContext(messages=[
+                # {'role':'agent','content': f'merchant_id:{DEFAULT_MERCHANT_ID}'},
+                {'role':'agent','content':msgs[-1]['content']}
+            ])
+            )
+            print('customer -> merchant admin:')
+            print(resp)
+            await ctx.send(sender,A3AResponse(type='chat',content= resp.content))
+            return
     # Do NOT append another system message; keep only the first system message per ASI API rules
     
     # msgs.extend(msg.messages)
