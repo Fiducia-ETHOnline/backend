@@ -20,7 +20,8 @@ Below is practical guidance—no technical jargon required.
 - “Let’s proceed with that” → The agent will prepare the order proposal
 
 🗺 Coverage
-- Works with a specific merchant at a time (by merchant_id); your app preselects or sets this
+- Works with a specific merchant at a time (by merchant_id)
+- If no merchant_id hint is provided, the agent auto-selects a merchant by keyword-searching MeTTa storage using your latest message (e.g., “pizza”, “burrito”, a neighborhood name)
 - Uses the merchant’s live menu for accurate names and prices
 
 ℹ️ Tips for Best Results
@@ -73,7 +74,12 @@ Ensure the following variables are set (see `.env.example`):
 4. Confirms payment with `confirm_order(order_id)`
 
 ### Merchant scoping and wallet lookup
-The Customer Agent always scopes merchant queries (menu, wallet, consultations) by `DEFAULT_MERCHANT_ID`. This ensures the live MeTTa state for that merchant is used.
+Merchant selection priority:
+1) Explicit hint in the conversation: `merchant_id:<id>`
+2) Keyword search over MeTTa storage based on the user's latest message
+3) Fallback to `DEFAULT_MERCHANT_ID`
+
+This ensures the live MeTTa state for the selected merchant is used.
 
 When building a payment, the Customer Agent queries the Merchant Agent’s wallet via the A3A protocol. The Merchant Agent will return the MeTTa-stored wallet if set by admin command, else it falls back to `MERCHANT_WALLET_ADDRESS` from environment.
 

@@ -31,6 +31,7 @@ from metta.utils import (
     get_item_price,
 )
 from metta.knowledge import initialize_knowledge_graph, seed_merchant_example
+from metta.indexer import search_merchants
 
 order_contract = OrderContractManager(
     provider_url=os.environ['CONTRACT_URL'],
@@ -51,6 +52,48 @@ MERCHANT_AGENT_ADDRESS = os.getenv(
 # Default merchant scope used when querying the merchant agent for menu/wallet.
 # This should match the merchant_id used during admin updates (if any).
 DEFAULT_MERCHANT_ID = os.getenv('DEFAULT_MERCHANT_ID', '1')
+
+
+def _select_merchant_id_from_context(messages: list[dict]) -> str:
+    """Choose a merchant_id to scope queries.
+
+    Priority:
+    1) Explicit hint in messages: role in {agent, system} and content startswith 'merchant_id:'
+    2) Keyword search over MeTTa storage based on the last user message
+    3) Fallback to DEFAULT_MERCHANT_ID
+    """
+    # 1) Check for explicit hint
+    try:
+        for m in messages:
+            if isinstance(m, dict):
+                role = m.get('role')
+                content = m.get('content')
+                if role in ('agent', 'system') and isinstance(content, str) and content.startswith('merchant_id:'):
+                    hinted = content.split(':', 1)[1].strip()
+                    if hinted:
+                        return hinted
+    except Exception:
+        pass
+
+    # 2) Try to derive from last user message via keyword search
+    last_user_text = None
+    try:
+        for m in reversed(messages):
+            if isinstance(m, dict) and m.get('role') == 'user':
+                last_user_text = str(m.get('content'))
+                break
+    except Exception:
+        pass
+    if last_user_text:
+        try:
+            results = search_merchants(last_user_text)
+            if results:
+                return str(results[0]['merchant_id'])
+        except Exception:
+            pass
+
+    # 3) Fallback
+    return DEFAULT_MERCHANT_ID
 
 order_contract.user_account
 system_prompt = '''
@@ -217,10 +260,13 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                 {"role": "system", "content": system_prompt},
                 
             ]
+    # Determine merchant_id to scope this conversation
+    chosen_merchant_id = _select_merchant_id_from_context(msg.messages)
+
     # Always fetch the merchant's current menu from merchant agent to ground the model
     try:
         # Scope the menu query to a specific merchant_id so it reflects admin updates
-        menu_resp = await try_send_to_merchant(A3AMerchantMenuQuery(DEFAULT_MERCHANT_ID))
+        menu_resp = await try_send_to_merchant(A3AMerchantMenuQuery(chosen_merchant_id))
         menu_text = _safe_content(menu_resp)
     except Exception:
         menu_text = None
@@ -250,7 +296,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
             content = content.removeprefix('/')
             resp:A3AResponse = await try_send_to_merchant(
             A3AContext(messages=[
-                # {'role':'agent','content': f'merchant_id:{DEFAULT_MERCHANT_ID}'},
+                # {'role':'agent','content': f'merchant_id:{chosen_merchant_id}'},
                 {'role':'agent','content':content}
             ])
             )
@@ -299,7 +345,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                         # Create order (agent signs and emits OrderProposed)
                         orderid, txhash = real_create_propose(digest, wallet_address)
                         # Get merchant payout wallet
-                        mw_resp = await try_send_to_merchant(A3AMerchantWalletQuery(DEFAULT_MERCHANT_ID))
+                        mw_resp = await try_send_to_merchant(A3AMerchantWalletQuery(chosen_merchant_id))
                         merchant_wallet = _safe_content(mw_resp).strip()
                         # Validate merchant wallet; fallback to env if invalid
                         if not is_valid_ethereum_address(merchant_wallet):
@@ -331,7 +377,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                     # Include merchant_id hint so the merchant LLM path is scoped correctly
                     resp:A3AResponse = await try_send_to_merchant(
                         A3AContext(messages=[
-                            {'role':'agent','content': f'merchant_id:{DEFAULT_MERCHANT_ID}'},
+                            {'role':'agent','content': f'merchant_id:{chosen_merchant_id}'},
                             {'role':'user','content':message}
                         ])
                     )

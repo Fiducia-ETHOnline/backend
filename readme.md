@@ -162,6 +162,8 @@ python start_merchant.py
   - To scope to a merchant, include `{ role: 'agent', content: 'merchant_id:<id>' }`
 - `GET /api/merchant/{merchant_id}/profile` – Returns the live merchant profile from MeTTa storage
   - Response: `{ merchant_id, wallet, description, hours, location, menu: [{ name, price, description }] }`
+- `GET /api/merchant/search?q=<keywords>` – Search merchants by keywords (menu items, description, location)
+  - Response: `{ query, results: [{ merchant_id, score, items, desc, location }] }`
 
 #### Quick test: Merchant profile (curl)
 

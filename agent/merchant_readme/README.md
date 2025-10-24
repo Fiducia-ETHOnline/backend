@@ -112,6 +112,7 @@ Example slash mapping (UI → agent message):
 
 Scoping / multi-merchant:
 - The frontend or customer agent can include a hint like `merchant_id:123` as a separate agent-role message to scope data.
+- If no hint is provided, the Customer Agent may select a merchant by keyword-searching MeTTa storage (menu names, description, location) and then send the hint automatically.
 - The merchant agent reads this hint and serves/updates data for that merchant only.
 
 ## Wallet resolution

@@ -10,6 +10,7 @@ from eth_utils import to_checksum_address
 import os
 from dotenv import load_dotenv
 load_dotenv()
+from metta.indexer import search_merchants
 router = APIRouter(prefix="/api", tags=["merchant"])
 from hyperon import MeTTa
 from metta.utils import (
@@ -154,3 +155,12 @@ async def get_merchant_profile(merchant_id: str, current_user: dict = Depends(ve
         'location': loc,
         'menu': menu,
     }
+
+@router.get('/merchant/search')
+async def search_merchants_api(q: str, current_user: dict = Depends(verify_jwt_token)):
+    """Search merchants by keywords extracted from their MeTTa storage.
+
+    Returns a list of candidate merchants with basic info for selection.
+    """
+    results = search_merchants(q)
+    return {"query": q, "results": results}
