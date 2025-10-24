@@ -160,6 +160,31 @@ python start_merchant.py
 - `POST /api/merchant/chat/messages` – Forward chat/admin messages to Merchant Agent
   - Body: `{ messages: [{ role: 'agent'|'user'|'assistant'|'query_wallet'|'query_menu', content: string }] }`
   - To scope to a merchant, include `{ role: 'agent', content: 'merchant_id:<id>' }`
+- `GET /api/merchant/{merchant_id}/profile` – Returns the live merchant profile from MeTTa storage
+  - Response: `{ merchant_id, wallet, description, hours, location, menu: [{ name, price, description }] }`
+
+#### Quick test: Merchant profile (curl)
+
+Local (replace 127.0.0.1:5000 if different):
+
+```bash
+# 1) Paste your JWT (from /api/auth/login)
+TOKEN="<PASTE_JWT_HERE>"
+
+# 2) Fetch merchant profile for merchant_id=1
+curl -s \
+  -H "Authorization: Bearer $TOKEN" \
+  http://127.0.0.1:5000/api/merchant/1/profile | jq
+```
+
+Deployed (replace base URL and merchant_id as needed):
+
+```bash
+TOKEN="<PASTE_JWT_HERE>"
+curl -s \
+  -H "Authorization: Bearer $TOKEN" \
+  https://fiduciademo.123a.club/api/merchant/1/profile | jq
+```
 
 ### Admin commands (merchant)
 Send as `role='agent'` through `/api/merchant/chat/messages`. Names can be multi‑word; price is the final field.
@@ -254,6 +279,7 @@ This project integrates a lightweight knowledge graph using Hyperon/MeTTa to sto
   - `metta/knowledge.py` – seeds the knowledge graph (capabilities, solutions, FAQs, etc.)
   - `metta/generalrag.py` – small RAG helper for querying the graph
   - `metta/utils.py` – helpers for app logic (e.g., storing merchant menus as MeTTa relations)
+  - `metta/storage.py` – persistent line-based storage for per-merchant facts
   - `metta/test.py` – runnable tests that exercise add → query → remove (tombstone) flows
 
 - Why `python -m metta.test` works: `metta/` is a Python package (has `__init__.py`), so you can run the module path with `-m`. This uses package-relative imports and avoids path issues.
@@ -276,6 +302,20 @@ Implementation notes:
 - We use MeTTa relations like `(menu <merchant> <item>)` and `(price <item> <value>)`.
 - A logical “remove” writes a tombstone `(removed-menu <merchant> <item>)`, which `get_menu_for_merchant` filters out.
 - Test code contains some debug logs to help validate graph behavior; these are only in the test helper and not used by live API routes.
+
+### Persistent MeTTa Storage (🗄️)
+
+Admin mutations (set wallet, add/update/remove items, descriptions, hours, location, item descriptions) are appended to a per-merchant file under `metta_store/merchant_<id>.metta` by default (configurable via `METTA_STORAGE_DIR`).
+
+- Write format: one S‑expression per line, e.g.
+  - `(menu 1 cheese_pizza)`
+  - `(item-display cheese_pizza "cheese pizza")`
+  - `(price cheese_pizza "5")`
+  - `(merchant-wallet 1 "0x...")`
+  - `(merchant-desc 1 "Best NY-style thin crust")`
+  - `(removed-menu 1 cheese_pizza)`
+- Load: the merchant agent hydrates a MeTTa instance from the file on every read path (menu/wallet/system prompt), so data survives restarts.
+- Frontend: use `GET /api/merchant/{merchant_id}/profile` to fetch the live profile (menu + metadata) without going through the agent.
 
 ### Manual Testing
 ```bash

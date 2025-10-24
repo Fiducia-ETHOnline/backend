@@ -140,3 +140,7 @@ When another agent queries for the wallet (role `query_wallet` via A3A protocol)
 *- No static seeding is performed by default.*
 
 The merchant agent address is printed at startup; use that in MERCHANT_AGENT_ADDRESS for API calls.
+
+### Agent address
+
+**Customer Agent Address**: `agent1qf9ua6p2gz6nx47emvsf5d9840h7wpfwlcqhsqt4zz0dun8tj43l23jtuch`
