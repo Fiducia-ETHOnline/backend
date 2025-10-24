@@ -39,3 +39,8 @@ config.py
 .pytest_cache/
 .coverage
 htmlcov/
+
+# MeTTa storage and tx artifacts
+metta_store/
+unsigned_tx.json
+tx_receipt.json

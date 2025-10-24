@@ -11,6 +11,17 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 router = APIRouter(prefix="/api", tags=["merchant"])
+from hyperon import MeTTa
+from metta.utils import (
+    create_metta,
+    get_menu_for_merchant,
+    get_item_description,
+    get_merchant_wallet,
+    get_merchant_description,
+    get_open_hours,
+    get_location,
+)
+from metta.storage import load_merchant_into
 
 class UpdateStatusRequest(BaseModel):
     status: str
@@ -100,3 +111,46 @@ async def send_merchant_chat_message(
 
     resp = await send_sync_message(merchant_agent_address, A3AContext(messages=final_msg), response_type=A3AResponse)
     return resp
+
+@router.get('/merchant/{merchant_id}/profile')
+async def get_merchant_profile(merchant_id: str, current_user: dict = Depends(verify_jwt_token)):
+    """Return the live merchant profile (menu, metadata, wallet) for a given merchant_id.
+
+    This uses the MeTTa storage files to reconstruct state and is safe for customer/frontend reads.
+    """
+    # Build a fresh MeTTa instance and hydrate it from storage for this merchant
+    metta = create_metta()
+    try:
+        load_merchant_into(metta, merchant_id)
+    except Exception:
+        # If storage missing/unreadable, return empty profile gracefully
+        pass
+
+    # Read metadata
+    desc = get_merchant_description(metta, merchant_id)
+    hours = get_open_hours(metta, merchant_id)
+    loc = get_location(metta, merchant_id)
+    wallet = get_merchant_wallet(metta, merchant_id)
+
+    # Build menu with optional per-item descriptions
+    menu_pairs = get_menu_for_merchant(metta, merchant_id) or []
+    menu = []
+    for name, price in menu_pairs:
+        try:
+            item_desc = get_item_description(metta, name)
+        except Exception:
+            item_desc = None
+        menu.append({
+            'name': name,
+            'price': price,
+            'description': item_desc,
+        })
+
+    return {
+        'merchant_id': merchant_id,
+        'wallet': wallet,
+        'description': desc,
+        'hours': hours,
+        'location': loc,
+        'menu': menu,
+    }
