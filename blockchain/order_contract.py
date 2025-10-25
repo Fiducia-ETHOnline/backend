@@ -328,7 +328,9 @@ class OrderContractManager:
         try:
             # Get order details to check price
             order_details = self.get_order_details_by_id(order_id)
-            total_amount = order_details.price + wei_to_eth(self.AGENT_FEE)
+            # Normalize numeric types: order_details.price is float (pyUSD),
+            # wei_to_eth returns Decimal; cast to float to avoid type errors.
+            total_amount = float(order_details.price) + float(wei_to_eth(self.AGENT_FEE))
             
             # Check pyUSD balance
             # balance = self.get_pyusd_balance(from_address)
@@ -383,7 +385,7 @@ class OrderContractManager:
         try:
             # Get order details to check price
             order_details = self.get_order_details_by_id(order_id)
-            total_amount = order_details.price + wei_to_eth(self.AGENT_FEE)
+            total_amount = float(order_details.price) + float(wei_to_eth(self.AGENT_FEE))
             
             # Check pyUSD balance
             balance = self.get_pyusd_balance(from_address)
@@ -606,8 +608,9 @@ class OrderContractManager:
             seller=offer[1],
             prompt_hash=offer[2].hex(),
             answer_hash=offer[3].hex(),
-            price=wei_to_eth(offer[4]),
-            paid=wei_to_eth(offer[5]),
+            # pyUSD uses 6 decimals
+            price=(offer[4]/(10**6)),
+            paid=(offer[5]/(10**6)),
             timestamp=datetime.fromtimestamp(offer[6]),
             status=OrderStatus(offer[7]),
             status_name=OrderStatus(offer[7]).name
