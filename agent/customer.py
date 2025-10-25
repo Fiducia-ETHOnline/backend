@@ -280,13 +280,27 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
             ]
     is_merchant = False
     for item in msg.messages:
-        if item['role'] == 'wallet':
-            wallet_address = item['content'].lower().strip()
-        elif item['role'] == 'merchant_wallet':
-            wallet_address = item['content'].lower().strip()
-            is_merchant = True 
+        try:
+            role = item.get('role') if isinstance(item, dict) else None
+            content = item.get('content') if isinstance(item, dict) else None
+        except Exception:
+            role, content = None, None
+        if role == 'wallet':
+            wallet_address = (content or '').lower().strip()
+        elif role == 'merchant_wallet':
+            wallet_address = (content or '').lower().strip()
+            is_merchant = True
+        elif role in ('user', 'assistant'):
+            # Only pass valid OpenAI roles through to the LLM. Custom roles like 'agent'
+            # are used for internal routing/scoping and must NOT be forwarded to the model.
+            msgs.append({
+                'role': role,
+                'content': content if isinstance(content, str) else str(content)
+            })
         else:
-            msgs.append(item)
+            # Ignore any custom roles (e.g., 'agent') for the LLM payload
+            # They are still available in msg.messages for merchant selection/hints.
+            continue
     if wallet_address == '':
         await ctx.send(sender,A3AErrorPacket('Cannot find wallet address in this context!'))
         return
