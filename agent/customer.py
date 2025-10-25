@@ -296,7 +296,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
             content = content.removeprefix('/')
             resp:A3AResponse = await try_send_to_merchant(
             A3AContext(messages=[
-                # {'role':'agent','content': f'merchant_id:{chosen_merchant_id}'},
+                {'role':'agent','content': f'merchant_id:{chosen_merchant_id}'},
                 {'role':'agent','content':content}
             ])
             )

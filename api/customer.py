@@ -46,6 +46,9 @@ async def send_chat_message(
     for item in msgs:
         if item['role'] == 'user' or item['role'] == 'assistant':
             final_msg.append(A3AMessage(role=item['role'],content=item['content']))
+    # If the authenticated user is a merchant, pass merchant_id hint so downstream agents scope correctly
+    if current_user.get('merchant_id'):
+        final_msg.append(A3AMessage(role='agent', content=f"merchant_id:{current_user['merchant_id']}"))
     # final_msg.extend(msgs)
     resp = await send_sync_message(custom_agent_address,A3AContext(messages=final_msg),response_type=A3AResponse)
     # async def event_stream():

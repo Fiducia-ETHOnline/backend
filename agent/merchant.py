@@ -49,6 +49,56 @@ from metta.storage import (
 # Global MeTTa instance for merchant knowledge (lazy, NFT-gated via admin API)
 METTA_INSTANCE: MeTTa | None = None
 
+
+def _normalize_admin_command(text: str) -> str:
+    """Support slash-style admin commands by mapping them to colon syntax.
+    Examples:
+      /set_wallet 0xABC        -> set_wallet:0xABC
+      /add_item cheese pizza 5 -> add_item:cheese pizza:5
+      /update_price cheese pizza 6 -> update_price:cheese pizza:6
+      /remove_item cheese pizza    -> remove_item:cheese pizza
+      /set_desc Best NY slices -> set_desc:Best NY slices
+      /set_hours Mon-Fri 10-22 -> set_hours:Mon-Fri 10-22
+      /set_location Brooklyn   -> set_location:Brooklyn
+      /set_item_desc cheese pizza Creamy mozz -> set_item_desc:cheese pizza:Creamy mozz
+    """
+    if not isinstance(text, str):
+        return text
+    s = text.strip()
+    if not s.startswith('/'):
+        return s
+    s = s[1:].strip()
+    parts = s.split()
+    if not parts:
+        return text
+    cmd = parts[0]
+    rest = parts[1:]
+    if cmd == 'set_wallet' and len(rest) >= 1:
+        return f"set_wallet:{rest[0]}"
+    if cmd == 'add_item' and len(rest) >= 2:
+        price = rest[-1]
+        name = ' '.join(rest[:-1])
+        return f"add_item:{name}:{price}"
+    if cmd == 'update_price' and len(rest) >= 2:
+        price = rest[-1]
+        name = ' '.join(rest[:-1])
+        return f"update_price:{name}:{price}"
+    if cmd == 'remove_item' and len(rest) >= 1:
+        name = ' '.join(rest)
+        return f"remove_item:{name}"
+    if cmd == 'set_desc' and len(rest) >= 1:
+        return f"set_desc:{' '.join(rest)}"
+    if cmd == 'set_hours' and len(rest) >= 1:
+        return f"set_hours:{' '.join(rest)}"
+    if cmd == 'set_location' and len(rest) >= 1:
+        return f"set_location:{' '.join(rest)}"
+    if cmd == 'set_item_desc' and len(rest) >= 2:
+        name = rest[0]
+        desc = ' '.join(rest[1:])
+        return f"set_item_desc:{name}:{desc}"
+    # Fallback: no mapping; return original without leading slash
+    return s
+
 def _ensure_metta_for_admin() -> MeTTa:
     """Create the MeTTa instance on-demand for admin-only mutations.
 
@@ -260,7 +310,7 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
                     ctx.logger.warning("Failed to apply merchant_id hint")
                 continue
             # For admin mutations, only keep the last command for this turn
-            last_admin_content = content
+            last_admin_content = _normalize_admin_command(content)
 
     # Apply only the latest admin command once per request
     if last_admin_content:
