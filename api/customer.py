@@ -177,6 +177,29 @@ async def confirm_order_received(
     }
     return response_data
 
+@router.get('/orders/{orderId}/details')
+async def get_order_details(orderId: str, current_user: dict = Depends(verify_jwt_token)):
+    """Return on-chain order details for quick verification of routing.
+
+    Useful fields: buyer, seller, price (pyUSD), paid (pyUSD), status, status_name.
+    """
+    try:
+        d = backend_ordercontract.get_order_details_by_id(orderId)
+        return {
+            'orderId': d.order_id,
+            'buyer': d.buyer,
+            'seller': d.seller,
+            'price': d.price,
+            'paid': d.paid,
+            'status': d.status,
+            'status_name': d.status_name,
+            'prompt_hash': d.prompt_hash,
+            'answer_hash': d.answer_hash,
+            'timestamp': d.timestamp.isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch order details: {e}")
+
 @router.post('/orders/{orderId}/dispute')
 async def raise_dispute(
     orderId: str,

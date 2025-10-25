@@ -206,6 +206,18 @@ while True:
                     print('📜 Saved receipt to tx_receipt.json')
                 except Exception as e:
                     print(f"❌ Auto-signing failed: {e}")
+            # Fetch and print order details (seller/buyer) for verification
+            try:
+                details_url = f"http://127.0.0.1:5000/api/orders/{order_id}/details"
+                d = requests.get(details_url, headers=headers)
+                if d.status_code == 200:
+                    info = d.json()
+                    print("🔎 Order details:")
+                    print(json.dumps(info, indent=2))
+                else:
+                    print(f"⚠️ Could not fetch order details: {d.status_code} {d.text}")
+            except Exception as e:
+                print(f"⚠️ Details fetch error: {e}")
         except Exception:
             # Fallback to raw print
             print(content)

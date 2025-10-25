@@ -361,12 +361,12 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                         # Get merchant payout wallet
                         mw_resp = await try_send_to_merchant(A3AMerchantWalletQuery(chosen_merchant_id))
                         merchant_wallet = _safe_content(mw_resp).strip()
-                        # Validate merchant wallet; fallback to env if invalid
+                        # Validate merchant wallet; no fallback by design
                         if not is_valid_ethereum_address(merchant_wallet):
-                            fallback_wallet = os.getenv('MERCHANT_WALLET_ADDRESS', '')
-                            if not is_valid_ethereum_address(fallback_wallet):
-                                raise ValueError(f"Invalid merchant wallet returned ('{merchant_wallet}') and fallback not set.")
-                            merchant_wallet = fallback_wallet
+                            raise ValueError(
+                                "Merchant wallet is not set or invalid. Please ensure the merchant NFT owner is resolvable "
+                                "or set a wallet via admin command: /set_wallet 0xYourAddress."
+                            )
                         merchant_wallet = to_checksum_address(merchant_wallet)
                         # Ensure numeric price for propose_answer
                         price_float = float(str(price))

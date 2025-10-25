@@ -23,6 +23,7 @@ from metta.utils import (
     get_location,
 )
 from metta.storage import load_merchant_into
+from blockchain.merchant_nft import get_wallet_for_merchant_id
 
 class UpdateStatusRequest(BaseModel):
     status: str
@@ -132,6 +133,17 @@ async def get_merchant_profile(merchant_id: str, current_user: dict = Depends(ve
     hours = get_open_hours(metta, merchant_id)
     loc = get_location(metta, merchant_id)
     wallet = get_merchant_wallet(metta, merchant_id)
+    if not wallet:
+        # Default wallet falls back to NFT owner for ERC-721 merchant_id
+        try:
+            if str(merchant_id).isdigit():
+                owner_wallet = get_wallet_for_merchant_id(int(merchant_id))
+            else:
+                owner_wallet = None
+        except Exception:
+            owner_wallet = None
+        # No environment fallback by design
+        wallet = owner_wallet or None
 
     # Build menu with optional per-item descriptions
     menu_pairs = get_menu_for_merchant(metta, merchant_id) or []

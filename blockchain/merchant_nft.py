@@ -18,6 +18,14 @@ ERC721_ABI = [
         "outputs": [{"name": "balance", "type": "uint256"}],
         "type": "function",
     },
+    # ownerOf for ERC-721
+    {
+        "constant": True,
+        "inputs": [{"name": "tokenId", "type": "uint256"}],
+        "name": "ownerOf",
+        "outputs": [{"name": "owner", "type": "address"}],
+        "type": "function",
+    },
     # Transfer event (indexed from, to, tokenId)
     {
         "anonymous": False,
@@ -182,3 +190,29 @@ def get_merchant_id(address: str) -> str:
         return Web3.to_checksum_address(address)
     except Exception:
         return address.lower()
+
+
+def get_wallet_for_merchant_id(merchant_id: str | int) -> Optional[str]:
+    """Resolve the default wallet for a merchant_id from the NFT contract.
+
+    For ERC-721, returns ownerOf(tokenId). For ERC-1155, no single owner exists; returns None.
+    Returns None if provider/contract are not configured or an error occurs.
+    """
+    try:
+        w3 = _web3()
+        if not w3:
+            return None
+        c = _contract(w3)
+        if not c:
+            return None
+        # Only ERC-721 supports ownerOf(tokenId)
+        if _STANDARD != 'ERC721':
+            return None
+        tid = int(str(merchant_id))
+        # Ensure function exists
+        if hasattr(c.functions, 'ownerOf'):
+            owner = c.functions.ownerOf(tid).call()
+            return Web3.to_checksum_address(owner)
+        return None
+    except Exception:
+        return None

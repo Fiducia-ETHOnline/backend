@@ -45,6 +45,7 @@ from metta.storage import (
     append_location as storage_append_location,
     append_item_desc as storage_append_item_desc,
 )
+from blockchain.merchant_nft import get_wallet_for_merchant_id
 
 # Global MeTTa instance for merchant knowledge (lazy, NFT-gated via admin API)
 METTA_INSTANCE: MeTTa | None = None
@@ -255,8 +256,19 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
     last_role = msg.messages[-1]['role']
     if last_role == 'query_wallet':
         metta_ro = _ensure_metta_for_read(merchant_label)
+        # 1) Try MeTTa-stored wallet
         wallet = get_merchant_wallet(metta_ro, merchant_label)
-        wallet = wallet or MERCHANT_WALLET_ADDRESS
+        # 2) Fallback to NFT owner (merchant_id interpreted as tokenId when numeric)
+        if not wallet:
+            try:
+                if str(merchant_label).isdigit():
+                    owner_wallet = get_wallet_for_merchant_id(int(merchant_label))
+                else:
+                    owner_wallet = None
+            except Exception:
+                owner_wallet = None
+            # No environment fallback by design; return empty if unresolved
+            wallet = owner_wallet or ""
         await ctx.send(sender, A3AWalletResponse(wallet))
         return
     if last_role == 'query_menu':
