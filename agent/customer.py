@@ -109,6 +109,7 @@ A normal process of your job is listed as follow:
 5. Finally, You should have:
 - detailed description of user's needs
 - reasonable price of such a order
+- merchant_id from the product
 5. Then, ask user to confirm this order
 6. Call create_propose to create an order
 
@@ -123,7 +124,8 @@ create_propose = {
     "type": "object",
     "properties": {
         "desc": {"type": "string"},
-        "price":{"type":"string"}
+        "price":{"type":"string"},
+        'merchant_id':{'type':'string'}
       },
       "required": ["desc","price"]
     }
@@ -344,6 +346,8 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                  arguments = json.loads(tool.function.arguments)
                  if function_name == 'create_propose':
                     desc = arguments['desc']
+                    chosen_merchant_id = arguments['merchant_id']
+                    print(f'we want to create order from {desc} {chosen_merchant_id}')
                     # Try to validate/normalize price; if invalid/missing, consult MeTTa
                     item_hint = None
                     # try:
@@ -390,6 +394,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                     return
                  else:
                     message = arguments['message']
+                    
                     # Include merchant_id hint so the merchant LLM path is scoped correctly
                     resp:A3AResponse = await try_send_to_merchant(
                         A3AContext(messages=[
