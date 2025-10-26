@@ -104,7 +104,7 @@ A normal process of your job is listed as follow:
 1. (optional) introduce yourself
 2. ask user their needs
 3. help user make their needs more in detail
-4. chat with a merchant agent using consult_merchant function to see which merchant has the best match to this result.
+4. chat with a merchant agent using consult_merchant function to fetch the menu of all products the merchant provide.
 4.1 When you return your result from merchant to user, you need to include the price of the product, the name of the merchant
 5. Finally, You should have:
 - detailed description of user's needs
@@ -137,13 +137,6 @@ consult_merchant = {
 "function": {
   "name": "consult_merchant",
   "description": "chat with the merchant agent ai bot",
-  "parameters": {
-    "type": "object",
-    "properties": {
-        "message":{"type":"string"}
-      },
-      "required": ["message"]
-    },
 
   }
 }
@@ -393,13 +386,13 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                     # await ctx.send(sender,A3AResponse(type='order',content=json.dumps(transaction)))
                     return
                  else:
-                    message = arguments['message']
+                    # message = arguments['message']
                     
                     # Include merchant_id hint so the merchant LLM path is scoped correctly
                     resp:A3AResponse = await try_send_to_merchant(
                         A3AContext(messages=[
-                            {'role':'agent','content': f'merchant_id:{chosen_merchant_id}'},
-                            {'role':'user','content':message}
+                            # {'role':'agent','content': f'merchant_id:{chosen_merchant_id}'},
+                            {'role':'list_menu','content':''}
                         ])
                     )
                     ctx.logger.info(f'From merchant agent:\n{resp}')

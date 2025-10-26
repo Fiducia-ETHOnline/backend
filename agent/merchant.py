@@ -301,6 +301,18 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
         menu_lines = "\n".join([f"- {i}: ${p}" for i, p in (menu or [])]) if menu else "(no items yet)"
         await ctx.send(sender, A3AMenuResponse(menu_lines))
         return
+    if last_role == 'list_menu':
+        with open('metta_store/index.json') as f:
+            indexs = json.load(f)['index']
+        menu_lines = ''
+        for k,v in indexs.items():
+            menu = get_menu_for_merchant(metta_ro, k)
+            menu_lines+= "\n".join([f"- {i}: ${p}" for i, p in (menu or [])]) if menu else "(no items yet)"
+        print(menu_lines)
+        await ctx.send(sender, A3AMenuResponse(menu_lines))
+        return
+        #customer side list menu
+
     wallet_address = ''
     # Track whether this request performed an admin action (not just a merchant_id hint)
     admin_action_present = False
@@ -491,8 +503,8 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
                     "I'm here to help with orders. I couldn't reach the assistant model just now, "
                     "but you can tell me what you want and I'll try again."
                 )
-            if admin_action_present:
-                fallback_text = f"Merchant verified; managing merchant_id={merchant_label}. " + fallback_text
+            # if admin_action_present:
+            fallback_text = f"Current merchant_id={merchant_label}. " + fallback_text
             await ctx.send(sender, A3AResponse(type='chat', content=fallback_text))
             return
         except Exception:
