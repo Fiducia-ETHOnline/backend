@@ -127,7 +127,7 @@ create_propose = {
         "price":{"type":"string"},
         'merchant_id':{'type':'string'}
       },
-      "required": ["desc","price"]
+      "required": ["desc","price",'merchant_id']
     }
   }
 }
