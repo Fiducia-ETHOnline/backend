@@ -137,7 +137,10 @@ consult_merchant = {
 "function": {
   "name": "consult_merchant",
   "description": "chat with the merchant agent ai bot",
-
+"parameters": {
+      "type": "object",
+      "properties": {}
+    }
   }
 }
 

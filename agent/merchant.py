@@ -302,11 +302,17 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
         await ctx.send(sender, A3AMenuResponse(menu_lines))
         return
     if last_role == 'list_menu':
-        with open('metta_store/index.json') as f:
-            indexs = json.load(f)['index']
+        try:
+            with open('metta_store/index.json') as f:
+                indexs = json.load(f)['index']
+        except Exception as e:
+            await ctx.send(sender, A3AMenuResponse('The menu is empty now!'))
+            return
         menu_lines = ''
         for k,v in indexs.items():
+            metta_ro = _ensure_metta_for_read(k)
             menu = get_menu_for_merchant(metta_ro, k)
+            menu_lines+='\nThe following are from merchant_id: '+k+'\n'
             menu_lines+= "\n".join([f"- {i}: ${p}" for i, p in (menu or [])]) if menu else "(no items yet)"
         print(menu_lines)
         await ctx.send(sender, A3AMenuResponse(menu_lines))
