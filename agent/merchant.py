@@ -51,6 +51,30 @@ from blockchain.merchant_nft import get_wallet_for_merchant_id
 METTA_INSTANCE: MeTTa | None = None
 
 
+def _rewrite_wallet_singleton(file_path: str, merchant_label: str, wallet: str) -> None:
+    """Ensure only a single merchant-wallet fact exists for this merchant in storage.
+
+    This rewrites the .metta file by removing all existing (merchant-wallet <id> "...")
+    lines for the given merchant_label and appending exactly one with the new wallet.
+    """
+    try:
+        # Read all lines
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+        # Filter out existing wallet lines for this merchant
+        prefix = f"(merchant-wallet {merchant_label} "
+        filtered = [ln for ln in lines if not ln.strip().startswith(prefix)]
+        # Append the new single wallet line
+        filtered.append(f'(merchant-wallet {merchant_label} "{wallet}")\n')
+        # Write back
+        with open(file_path, 'w') as f:
+            f.writelines(filtered)
+    except Exception:
+        # Non-fatal: if rewrite fails, we still set wallet in MeTTa and appended to storage
+        # downstream queries will prefer the in-memory value; persistence will be cleaned up later
+        pass
+
+
 def _normalize_admin_command(text: str) -> str:
     """Support slash-style admin commands by mapping them to colon syntax.
     Examples:
@@ -335,7 +359,10 @@ async def query_handler(ctx: Context, sender: str, msg: A3AContext):
                 wallet = content.split(':',1)[1].strip()
                 set_merchant_wallet(metta, merchant_label, wallet)
                 try:
-                    storage_append_wallet(merchant_file(merchant_label), merchant_label, wallet)
+                    mf = merchant_file(merchant_label)
+                    storage_append_wallet(mf, merchant_label, wallet)
+                    # Ensure only one wallet entry remains for this merchant in the file
+                    _rewrite_wallet_singleton(mf, merchant_label, wallet)
                 except Exception:
                     pass
                 admin_action_present = True

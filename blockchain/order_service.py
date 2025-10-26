@@ -235,7 +235,7 @@ class OrderContractService:
     
     # ========== AGENT FUNCTIONS ==========
     
-    async def agent_propose_answer(self, order_id: str, answer: str, price_pyusd: float) -> Dict[str, Any]:
+    async def agent_propose_answer(self, order_id: str, answer: str, price_pyusd: float, seller_address: Optional[str] = None) -> Dict[str, Any]:
         """
         Agent proposes an answer to an order
         
@@ -251,7 +251,9 @@ class OrderContractService:
         
         try:
             if self.agent_bridge:
-                response = await self.agent_bridge.agent_propose_answer(order_id, answer, price_pyusd)
+                if not seller_address:
+                    raise InvalidAddressException("seller_address is required to propose answer")
+                response = await self.agent_bridge.agent_propose_answer(order_id, answer, price_pyusd, seller_address)
                 return {
                     'success': True,
                     'order_id': order_id,
@@ -262,7 +264,9 @@ class OrderContractService:
                     'message': 'Answer proposed successfully'
                 }
             else:
-                tx_hash = self.contract_manager.propose_order_answer(order_id, answer, price_pyusd)
+                if not seller_address:
+                    raise InvalidAddressException("seller_address is required to propose answer")
+                tx_hash = self.contract_manager.propose_order_answer(order_id, answer, price_pyusd, seller_address)
                 return {
                     'success': True,
                     'order_id': order_id,

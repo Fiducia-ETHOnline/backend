@@ -194,6 +194,7 @@ class AgentOrderBridge:
                                  order_id: str, 
                                  answer: str, 
                                  price_pyusd: float,
+                                 seller_address: str,
                                  request_id: Optional[str] = None) -> AgentOrderResponse:
         """
         Agent proposes an answer for an order
@@ -215,7 +216,7 @@ class AgentOrderBridge:
             answer_hash = self.contract_manager.create_answer_hash(answer)
             
             # Propose answer on blockchain
-            tx_hash = self.contract_manager.propose_order_answer(order_id, answer, price_pyusd)
+            tx_hash = self.contract_manager.propose_order_answer(order_id, answer, price_pyusd, seller_address)
             
             # Create response object
             order_response = AgentOrderResponse(

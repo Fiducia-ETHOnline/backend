@@ -262,6 +262,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
             ]
     # Determine merchant_id to scope this conversation
     chosen_merchant_id = _select_merchant_id_from_context(msg.messages)
+    ctx.logger.info(f"[A2A Customer] chosen_merchant_id={chosen_merchant_id}")
 
     # Always fetch the merchant's current menu from merchant agent to ground the model
     try:
@@ -370,6 +371,7 @@ async def query_handler2(ctx: Context, sender: str, msg: A3AContext):
                         merchant_wallet = to_checksum_address(merchant_wallet)
                         # Ensure numeric price for propose_answer
                         price_float = float(str(price))
+                        ctx.logger.info(f"Proposing answer: merchant_id={chosen_merchant_id}, seller_wallet={merchant_wallet}")
                         _txhash_ans = real_answer_propose(orderid, price_float, merchant_wallet)
                         transaction = real_confirm_order(orderid, wallet_address)
                     except Exception as e:

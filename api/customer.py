@@ -20,6 +20,8 @@ class BuyA3ARequest(BaseModel):
 
 class ChatMessageRequest(BaseModel):
     messages: List[Dict[str, Any]]
+    # Optional explicit merchant selection from the client/UI
+    merchantId: str | None = None
 
 class PaymentConfirmationRequest(BaseModel):
     txHash: str
@@ -44,11 +46,19 @@ async def send_chat_message(
     final_msg = []
     final_msg.append(wallet_msg)
     for item in msgs:
-        if item['role'] == 'user' or item['role'] == 'assistant':
-            final_msg.append(A3AMessage(role=item['role'],content=item['content']))
+        role = item.get('role')
+        content = item.get('content')
+        if role in ('user', 'assistant'):
+            final_msg.append(A3AMessage(role=role, content=content))
+        # Allow clients to pass an explicit merchant_id hint as an agent-role message
+        elif role == 'agent' and isinstance(content, str) and content.startswith('merchant_id:'):
+            final_msg.append(A3AMessage(role='agent', content=content))
     # If the authenticated user is a merchant, pass merchant_id hint so downstream agents scope correctly
     if current_user.get('merchant_id'):
         final_msg.append(A3AMessage(role='agent', content=f"merchant_id:{current_user['merchant_id']}"))
+    # If the client provided merchantId explicitly, append/override with that hint last
+    if request.merchantId:
+        final_msg.append(A3AMessage(role='agent', content=f"merchant_id:{request.merchantId}"))
     # final_msg.extend(msgs)
     resp = await send_sync_message(custom_agent_address,A3AContext(messages=final_msg),response_type=A3AResponse)
     # async def event_stream():
